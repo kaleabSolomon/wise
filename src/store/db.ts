@@ -26,7 +26,7 @@ export const SCHEMA_VERSION = 1;
  * `WISE_HOME` so tests and sandboxes never touch the real store.
  */
 export function wiseHome(): string {
-  const override = process.env.WISE_HOME;
+  const override = process.env["WISE_HOME"];
   return override && override.length > 0 ? override : join(homedir(), ".wise");
 }
 
@@ -35,7 +35,7 @@ export function wiseHome(): string {
  * pass `:memory:` there for a throwaway in-memory store in tests.
  */
 export function resolveDbPath(): string {
-  const override = process.env.WISE_DB_PATH;
+  const override = process.env["WISE_DB_PATH"];
   if (override && override.length > 0) return override;
   return join(wiseHome(), "wise.db");
 }
@@ -143,7 +143,9 @@ function migrate(db: DB): void {
 
   const run = db.transaction(() => {
     for (let v = current; v < MIGRATIONS.length; v++) {
-      MIGRATIONS[v]!(db);
+      const migration = MIGRATIONS[v];
+      if (!migration) throw new Error(`missing migration ${v}`);
+      migration(db);
     }
     // Collapse to a single row holding the new version.
     db.exec(`DELETE FROM schema_version;`);

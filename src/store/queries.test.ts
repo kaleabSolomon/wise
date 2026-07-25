@@ -33,7 +33,7 @@ describe("saveExplanation / getByLocator", () => {
       symbol: "resolvePrice",
       prose: "gen1 prose",
       ast_hash: "h1",
-      is_stale: 0,
+      is_stale: false,
     });
     expect(got?.id).toBeGreaterThan(0);
   });
@@ -69,16 +69,16 @@ describe("stale lifecycle", () => {
   it("marks and clears the stale flag", () => {
     saveExplanation(db, base);
     expect(markStale(db, base)).toBe(true);
-    expect(getByLocator(db, base)?.is_stale).toBe(1);
+    expect(getByLocator(db, base)?.is_stale).toBe(true);
     expect(clearStale(db, base)).toBe(true);
-    expect(getByLocator(db, base)?.is_stale).toBe(0);
+    expect(getByLocator(db, base)?.is_stale).toBe(false);
   });
 
   it("clears stale when a stale row is re-saved", () => {
     saveExplanation(db, base);
     markStale(db, base);
     saveExplanation(db, { ...base, prose: "refreshed", ast_hash: "h2" });
-    expect(getByLocator(db, base)?.is_stale).toBe(0);
+    expect(getByLocator(db, base)?.is_stale).toBe(false);
   });
 
   it("reports no change for an unknown locator", () => {
