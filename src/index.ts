@@ -5,16 +5,44 @@
  * One process runs both:
  *   - the MCP server (over stdio) for Claude Code / desktop
  *   - the localhost HTTP viewer for reading explanations
- *
- * Section 0 stub: this boots and logs. Wiring lands in Section 3 (MCP server)
- * and Section 5 (viewer).
  */
 
-// Becomes async in Section 3 once the MCP server and viewer are awaited here.
-function main(): void {
-  // TODO(Section 3): start the MCP server over stdio.
-  // TODO(Section 5): start the localhost viewer.
-  console.error("wise: scaffold booted (no tools wired yet)");
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { openDb } from "./store/db.js";
+import { saveExplanationShape, runSave } from "./tools/save.js";
+
+async function main(): Promise<void> {
+  const db = openDb();
+  const server = new McpServer({ name: "wise", version: "0.1.0" });
+
+  server.registerTool(
+    "save_explanation",
+    {
+      title: "Save explanation",
+      description:
+        "Store a human-language explanation for a code symbol. Wise snapshots " +
+        "the symbol's current code and a structural hash so it can tell later " +
+        "when the explanation has gone stale.",
+      inputSchema: saveExplanationShape,
+    },
+    (args) => {
+      const result = runSave(db, args);
+      return {
+        content: [{ type: "text", text: result.message }],
+        isError: !result.ok,
+      };
+    },
+  );
+
+  // TODO(Section 3): register get_explanation.
+  // TODO(Section 4): register install_hook.
+  // TODO(Section 5): boot the localhost viewer.
+
+  await server.connect(new StdioServerTransport());
 }
 
-main();
+main().catch((err: unknown) => {
+  console.error(err);
+  process.exit(1);
+});

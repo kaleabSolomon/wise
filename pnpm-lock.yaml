@@ -23,6 +23,9 @@ importers:
       ts-morph:
         specifier: ^25.0.0
         version: 25.0.1
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@eslint/js':
         specifier: ^10.0.1
