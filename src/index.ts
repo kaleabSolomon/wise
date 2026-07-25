@@ -10,13 +10,11 @@
  * and Section 5 (viewer).
  */
 
-async function main(): Promise<void> {
+// Becomes async in Section 3 once the MCP server and viewer are awaited here.
+function main(): void {
   // TODO(Section 3): start the MCP server over stdio.
   // TODO(Section 5): start the localhost viewer.
   console.error("wise: scaffold booted (no tools wired yet)");
 }
 
-main().catch((err: unknown) => {
-  console.error(err);
-  process.exit(1);
-});
+main();

@@ -44,10 +44,16 @@ describe("saveExplanation / getByLocator", () => {
 
   it("overwrites in place rather than inserting a duplicate", () => {
     const first = saveExplanation(db, base);
-    const second = saveExplanation(db, { ...base, prose: "gen2 prose", ast_hash: "h2" });
+    const second = saveExplanation(db, {
+      ...base,
+      prose: "gen2 prose",
+      ast_hash: "h2",
+    });
     expect(second.id).toBe(first.id);
     expect(second.prose).toBe("gen2 prose");
-    expect(db.prepare("SELECT COUNT(*) c FROM explanations").get()).toEqual({ c: 1 });
+    expect(db.prepare("SELECT COUNT(*) c FROM explanations").get()).toEqual({
+      c: 1,
+    });
   });
 });
 
@@ -61,7 +67,9 @@ describe("history", () => {
 
     const prev = latestVersion(db, row.id);
     expect(prev?.prose).toBe("gen2 prose");
-    expect(db.prepare("SELECT COUNT(*) c FROM explanation_versions").get()).toEqual({ c: 2 });
+    expect(
+      db.prepare("SELECT COUNT(*) c FROM explanation_versions").get(),
+    ).toEqual({ c: 2 });
   });
 });
 

@@ -57,8 +57,7 @@ export function getByLocator(db: DB, loc: Locator): Explanation | undefined {
 
 export function getById(db: DB, id: number): Explanation | undefined {
   const row = db.prepare(`SELECT * FROM explanations WHERE id = ?`).get(id) as
-    | ExplanationRow
-    | undefined;
+    ExplanationRow | undefined;
   return row ? toExplanation(row) : undefined;
 }
 
