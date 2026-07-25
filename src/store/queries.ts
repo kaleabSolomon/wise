@@ -1,8 +1,3 @@
-/**
- * Typed read/write helpers over the store. Row shapes mirror the schema 1:1
- * (snake_case) so there's no mapping layer.
- */
-
 import type { DB } from "./db.js";
 
 export interface Locator {
@@ -16,7 +11,7 @@ export interface Explanation extends Locator {
   prose: string;
   code_snapshot: string;
   ast_hash: string;
-  is_stale: number;
+  is_stale: boolean;
   created_at: number;
   updated_at: number;
 }
@@ -36,18 +31,43 @@ export interface SaveInput extends Locator {
   ast_hash: string;
 }
 
+/** Row exactly as SQLite returns it — `is_stale` is 0/1 here, not a boolean. */
+interface ExplanationRow extends Locator {
+  id: number;
+  prose: string;
+  code_snapshot: string;
+  ast_hash: string;
+  is_stale: number;
+  created_at: number;
+  updated_at: number;
+}
+
+function toExplanation(row: ExplanationRow): Explanation {
+  return { ...row, is_stale: row.is_stale === 1 };
+}
+
 export function getByLocator(db: DB, loc: Locator): Explanation | undefined {
-  return db
+  const row = db
     .prepare(
       `SELECT * FROM explanations WHERE repo = ? AND file_path = ? AND symbol = ?`,
     )
-    .get(loc.repo, loc.file_path, loc.symbol) as Explanation | undefined;
+    .get(loc.repo, loc.file_path, loc.symbol) as ExplanationRow | undefined;
+  return row ? toExplanation(row) : undefined;
 }
 
 export function getById(db: DB, id: number): Explanation | undefined {
-  return db.prepare(`SELECT * FROM explanations WHERE id = ?`).get(id) as
-    | Explanation
+  const row = db.prepare(`SELECT * FROM explanations WHERE id = ?`).get(id) as
+    | ExplanationRow
     | undefined;
+  return row ? toExplanation(row) : undefined;
+}
+
+function mustGetById(db: DB, id: number): Explanation {
+  const row = getById(db, id);
+  if (!row) {
+    throw new Error(`explanation ${id} not found immediately after write`);
+  }
+  return row;
 }
 
 /**
@@ -74,7 +94,7 @@ export function saveExplanation(db: DB, input: SaveInput): Explanation {
          SET prose = ?, code_snapshot = ?, ast_hash = ?, is_stale = 0, updated_at = unixepoch()
          WHERE id = ?`,
       ).run(input.prose, input.code_snapshot, input.ast_hash, existing.id);
-      return getById(db, existing.id)!;
+      return mustGetById(db, existing.id);
     }
 
     const info = db
@@ -90,7 +110,7 @@ export function saveExplanation(db: DB, input: SaveInput): Explanation {
         input.code_snapshot,
         input.ast_hash,
       );
-    return getById(db, Number(info.lastInsertRowid))!;
+    return mustGetById(db, Number(info.lastInsertRowid));
   });
 
   return tx();
