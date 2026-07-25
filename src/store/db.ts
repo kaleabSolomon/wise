@@ -77,14 +77,10 @@ const MIGRATIONS: ReadonlyArray<(db: DB) => void> = [
         file_path     TEXT NOT NULL,   -- path to the file, relative to repo
         symbol        TEXT NOT NULL,   -- symbol name within the file
 
-        -- The explanation itself + the code it was written against.
+        -- The current explanation + the code it was written against.
         prose         TEXT NOT NULL,   -- human-language markdown (display-only)
         code_snapshot TEXT NOT NULL,   -- symbol's source text at save time
         ast_hash      TEXT NOT NULL,   -- structural hash; drives staleness
-
-        -- Previous generation, kept so a refresh can show a delta.
-        prev_prose    TEXT,
-        prev_snapshot TEXT,
 
         -- Staleness flag. Set by check-on-read or the opt-in post-commit hook;
         -- cleared when a fresh explanation is saved.
@@ -100,6 +96,29 @@ const MIGRATIONS: ReadonlyArray<(db: DB) => void> = [
     // Read path looks up by locator; keep it fast as the store grows.
     db.exec(
       `CREATE INDEX idx_explanations_locator ON explanations (repo, file_path, symbol);`,
+    );
+
+    // Append-only history. On each save, the outgoing generation is pushed here
+    // before `explanations` is overwritten, so nothing is ever lost and a
+    // refresh delta is just "current row vs the latest version row."
+    db.exec(`
+      CREATE TABLE explanation_versions (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        explanation_id INTEGER NOT NULL
+                         REFERENCES explanations(id) ON DELETE CASCADE,
+
+        -- Snapshot of one past generation (mirrors the columns above).
+        prose          TEXT NOT NULL,
+        code_snapshot  TEXT NOT NULL,
+        ast_hash       TEXT NOT NULL,
+
+        -- When this generation was superseded (i.e. pushed into history).
+        created_at     INTEGER NOT NULL DEFAULT (unixepoch())
+      );
+    `);
+    // History is always read newest-first for a single explanation.
+    db.exec(
+      `CREATE INDEX idx_versions_explanation ON explanation_versions (explanation_id, created_at DESC);`,
     );
   },
 ];
