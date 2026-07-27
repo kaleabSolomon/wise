@@ -164,3 +164,22 @@ export function latestVersion(
     )
     .get(explanationId) as Version | undefined;
 }
+
+export interface ExplanationSummary extends Locator {
+  id: number;
+  is_stale: boolean;
+  updated_at: number;
+}
+
+/** Lightweight listing for the viewer — no prose or snapshots. Newest first. */
+export function listExplanations(db: DB): ExplanationSummary[] {
+  const rows = db
+    .prepare(
+      `SELECT id, repo, file_path, symbol, is_stale, updated_at
+       FROM explanations ORDER BY updated_at DESC, id DESC`,
+    )
+    .all() as Array<
+    Omit<ExplanationSummary, "is_stale"> & { is_stale: number }
+  >;
+  return rows.map((r) => ({ ...r, is_stale: r.is_stale === 1 }));
+}
