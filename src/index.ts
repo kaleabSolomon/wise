@@ -11,6 +11,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { openDb } from "./store/db.js";
 import { saveExplanationShape, runSave } from "./tools/save.js";
+import { getExplanationShape, runGet, renderGetResult } from "./tools/get.js";
 
 async function main(): Promise<void> {
   const db = openDb();
@@ -35,7 +36,23 @@ async function main(): Promise<void> {
     },
   );
 
-  // TODO(Section 3): register get_explanation.
+  server.registerTool(
+    "get_explanation",
+    {
+      title: "Get explanation",
+      description:
+        "Retrieve the stored explanation for a code symbol. Wise re-reads the " +
+        "symbol and compares a structural hash: if fresh, it returns the prose; " +
+        "if the code changed, it returns the old explanation, the old code, and " +
+        "the current code so you can refresh it and call save_explanation back.",
+      inputSchema: getExplanationShape,
+    },
+    (args) => {
+      const { text, isError } = renderGetResult(runGet(db, args));
+      return { content: [{ type: "text", text }], isError };
+    },
+  );
+
   // TODO(Section 4): register install_hook.
   // TODO(Section 5): boot the localhost viewer.
 
