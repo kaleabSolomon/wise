@@ -7,13 +7,15 @@
  *   - the localhost HTTP viewer for reading explanations
  */
 
+import { resolve } from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { openDb } from "./store/db.js";
 import { saveExplanationShape, runSave } from "./tools/save.js";
 import { getExplanationShape, runGet, renderGetResult } from "./tools/get.js";
+import { flagStaleForHead } from "./hook/flag.js";
 
-async function main(): Promise<void> {
+async function runServer(): Promise<void> {
   const db = openDb();
   const server = new McpServer({ name: "wise", version: "0.1.0" });
 
@@ -59,7 +61,31 @@ async function main(): Promise<void> {
   await server.connect(new StdioServerTransport());
 }
 
-main().catch((err: unknown) => {
-  console.error(err);
-  process.exit(1);
-});
+/**
+ * `wise hook-flag <repo>` — invoked by the installed post-commit hook, out of
+ * band from the stdio server. A post-commit hook must never disrupt a commit,
+ * so any failure is reported and swallowed.
+ */
+function runHookFlag(repoArg: string | undefined): void {
+  if (!repoArg) {
+    console.error("usage: wise hook-flag <repo>");
+    process.exitCode = 2;
+    return;
+  }
+  try {
+    const { flagged } = flagStaleForHead(openDb(), resolve(repoArg));
+    console.error(`wise: flagged ${flagged} explanation(s) stale`);
+  } catch (err) {
+    console.error(`wise: hook-flag failed: ${String(err)}`);
+  }
+}
+
+const argv = process.argv.slice(2);
+if (argv[0] === "hook-flag") {
+  runHookFlag(argv[1]);
+} else {
+  runServer().catch((err: unknown) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

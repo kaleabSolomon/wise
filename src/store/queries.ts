@@ -132,6 +132,26 @@ function setStale(db: DB, loc: Locator, value: 0 | 1): boolean {
   return info.changes > 0;
 }
 
+/**
+ * Coarsely flag every explanation in `repo` whose file changed. Used by the
+ * post-commit hook: it flags by file, and check-on-read later confirms (and
+ * self-heals) via the structural hash. Returns the number of rows flagged.
+ */
+export function markStaleByFiles(
+  db: DB,
+  repo: string,
+  files: string[],
+): number {
+  if (files.length === 0) return 0;
+  const placeholders = files.map(() => "?").join(", ");
+  const info = db
+    .prepare(
+      `UPDATE explanations SET is_stale = 1 WHERE repo = ? AND file_path IN (${placeholders})`,
+    )
+    .run(repo, ...files);
+  return info.changes;
+}
+
 /** Most recent past generation — the other half of a refresh delta. */
 export function latestVersion(
   db: DB,
