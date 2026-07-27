@@ -41,6 +41,17 @@ describe("GET /api/explanations", () => {
   });
 });
 
+describe("GET /", () => {
+  it("serves the self-contained viewer page", async () => {
+    const res = await app.request("/");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/html");
+    const html = await res.text();
+    expect(html).toContain("<title>Wise</title>");
+    expect(html).toContain("/api/explanations");
+  });
+});
+
 describe("GET /api/explanations/:id", () => {
   it("returns detail with previous = null before any refresh", async () => {
     const row = saveExplanation(db, base);
@@ -74,6 +85,17 @@ describe("GET /api/explanations/:id", () => {
     expect(body.prose).toBe("gen2 prose");
     expect(body.previous?.prose).toBe("gen1 prose");
     expect(body.previous?.code_snapshot).toBe("gen1 code");
+  });
+
+  it("renders the prose markdown to HTML", async () => {
+    const row = saveExplanation(db, {
+      ...base,
+      prose: "# Title\n\nSome **bold** prose.",
+    });
+    const res = await app.request(`/api/explanations/${row.id}`);
+    const body = (await res.json()) as { prose_html: string };
+    expect(body.prose_html).toContain("<h1>Title</h1>");
+    expect(body.prose_html).toContain("<strong>bold</strong>");
   });
 
   it("400s on a non-numeric id and 404s on a missing one", async () => {

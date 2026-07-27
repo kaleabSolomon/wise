@@ -11,11 +11,34 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { openDb } from "./store/db.js";
+import { serve } from "@hono/node-server";
+import { openDb, type DB } from "./store/db.js";
 import { saveExplanationShape, runSave } from "./tools/save.js";
 import { getExplanationShape, runGet, renderGetResult } from "./tools/get.js";
 import { installHookShape, runInstallHook } from "./tools/installHook.js";
 import { flagStaleForHead } from "./hook/flag.js";
+import { createViewerApp } from "./viewer/server.js";
+
+const VIEWER_PORT = Number(process.env["WISE_VIEWER_PORT"] ?? 4319);
+
+/**
+ * Start the localhost viewer. Bind failures (e.g. another wise process already
+ * holds the port) are logged, never fatal — the MCP server must keep working.
+ * All logging goes to stderr so it can't corrupt the stdio JSON-RPC stream.
+ */
+function startViewer(db: DB): void {
+  const server = serve(
+    {
+      fetch: createViewerApp(db).fetch,
+      port: VIEWER_PORT,
+      hostname: "127.0.0.1",
+    },
+    (info) => console.error(`wise viewer: http://127.0.0.1:${info.port}`),
+  );
+  server.on("error", (err: unknown) =>
+    console.error(`wise viewer: not started (${String(err)})`),
+  );
+}
 
 async function runServer(): Promise<void> {
   const db = openDb();
@@ -81,7 +104,7 @@ async function runServer(): Promise<void> {
     },
   );
 
-  // TODO(Section 5): boot the localhost viewer.
+  startViewer(db);
 
   await server.connect(new StdioServerTransport());
 }

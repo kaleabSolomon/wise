@@ -1,14 +1,24 @@
 import { Hono } from "hono";
+import { marked } from "marked";
 import type { DB } from "../store/db.js";
 import { listExplanations, getById, latestVersion } from "../store/queries.js";
+import { PAGE_HTML } from "./page.js";
+
+/** Render display-only markdown to HTML. Synchronous; never touches a repo. */
+export function renderMarkdown(md: string): string {
+  return marked.parse(md, { async: false });
+}
 
 /**
- * The viewer's read-only HTTP API over the store. Detail includes the previous
- * generation so the client can render both diffs (explanation + code). Building
- * the app from an injected `db` keeps it testable without a running server.
+ * The viewer's read-only HTTP API over the store, plus the page itself. Detail
+ * includes the previous generation so the client can render both diffs
+ * (explanation + code). Building the app from an injected `db` keeps it testable
+ * without a running server.
  */
 export function createViewerApp(db: DB): Hono {
   const app = new Hono();
+
+  app.get("/", (c) => c.html(PAGE_HTML));
 
   app.get("/api/explanations", (c) => c.json(listExplanations(db)));
 
@@ -22,6 +32,7 @@ export function createViewerApp(db: DB): Hono {
     const prev = latestVersion(db, id);
     return c.json({
       ...row,
+      prose_html: renderMarkdown(row.prose),
       previous: prev
         ? {
             prose: prev.prose,
