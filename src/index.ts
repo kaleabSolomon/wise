@@ -8,11 +8,13 @@
  */
 
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { openDb } from "./store/db.js";
 import { saveExplanationShape, runSave } from "./tools/save.js";
 import { getExplanationShape, runGet, renderGetResult } from "./tools/get.js";
+import { installHookShape, runInstallHook } from "./tools/installHook.js";
 import { flagStaleForHead } from "./hook/flag.js";
 
 async function runServer(): Promise<void> {
@@ -55,7 +57,30 @@ async function runServer(): Promise<void> {
     },
   );
 
-  // TODO(Section 4): register install_hook.
+  server.registerTool(
+    "install_hook",
+    {
+      title: "Install post-commit hook",
+      description:
+        "Opt-in: install a post-commit hook into one repository's .git/hooks/ " +
+        "so explanations are flagged stale proactively after each commit. " +
+        "Nothing is placed in the working tree. Refuses to overwrite a " +
+        "non-wise post-commit hook.",
+      inputSchema: installHookShape,
+    },
+    (args) => {
+      const wiring = {
+        node: process.execPath,
+        entry: fileURLToPath(import.meta.url),
+      };
+      const r = runInstallHook(args, wiring);
+      const text = r.ok
+        ? `Wise post-commit hook ${r.action} at ${r.hookPath}.`
+        : r.message;
+      return { content: [{ type: "text", text }], isError: !r.ok };
+    },
+  );
+
   // TODO(Section 5): boot the localhost viewer.
 
   await server.connect(new StdioServerTransport());
