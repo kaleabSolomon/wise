@@ -8,6 +8,7 @@ export const PAGE_HTML = `<!doctype html>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Wise</title>
+<link rel="stylesheet" href="/assets/diff2html.css" />
 <style>
   :root {
     color-scheme: light dark;
@@ -74,6 +75,7 @@ export const PAGE_HTML = `<!doctype html>
   .expl-diff .body { white-space: pre-wrap; }
   ins { background: rgba(46,160,67,.22); text-decoration: none; }
   del { background: rgba(248,81,73,.22); }
+  .d2h { overflow-x: auto; margin-top: 10px; }
 </style>
 </head>
 <body>
@@ -112,13 +114,17 @@ export const PAGE_HTML = `<!doctype html>
       ? '<div class="expl-diff"><h3>What changed since you last read this</h3>' +
         '<div class="body">' + d.explanation_diff_html + "</div></div>"
       : "";
+    const codeSection = d.code_diff_html
+      ? '<section class="code"><details><summary>What changed in the code</summary>' +
+        '<div class="d2h">' + d.code_diff_html + "</div></details></section>"
+      : '<section class="code"><details><summary>Current code</summary><pre>' +
+        esc(d.code_snapshot) + "</pre></details></section>";
     detailEl.innerHTML =
       "<h2>" + esc(d.symbol) + (d.is_stale ? '<span class="badge">stale</span>' : "") + "</h2>" +
       '<div class="loc">' + esc(d.repo) + " › " + esc(d.file_path) + "</div>" +
       diffBlock +
       '<div class="prose">' + d.prose_html + "</div>" +
-      '<section class="code"><details><summary>Current code</summary><pre>' +
-      esc(d.code_snapshot) + "</pre></details></section>";
+      codeSection;
   }
 
   loadList();

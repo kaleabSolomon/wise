@@ -1,7 +1,11 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { openDb, type DB } from "../store/db.js";
 import { saveExplanation, type SaveInput } from "../store/queries.js";
-import { createViewerApp, renderExplanationDiff } from "./server.js";
+import {
+  createViewerApp,
+  renderExplanationDiff,
+  renderCodeDiff,
+} from "./server.js";
 
 const base: SaveInput = {
   repo: "/r",
@@ -120,9 +124,53 @@ describe("GET /api/explanations/:id", () => {
     expect(after.explanation_diff_html).toContain("<ins>triples</ins>");
   });
 
+  it("populates the code diff only when the snapshot changed", async () => {
+    const row = saveExplanation(db, { ...base, code_snapshot: "return 2;" });
+
+    // prose-only refresh: code unchanged → no code diff
+    saveExplanation(db, {
+      ...base,
+      code_snapshot: "return 2;",
+      prose: "reworded",
+      ast_hash: "h2",
+    });
+    let body = (await (
+      await app.request(`/api/explanations/${row.id}`)
+    ).json()) as { code_diff_html: string | null };
+    expect(body.code_diff_html).toBeNull();
+
+    // code refresh → code diff present
+    saveExplanation(db, {
+      ...base,
+      code_snapshot: "return 3;",
+      ast_hash: "h3",
+    });
+    body = (await (
+      await app.request(`/api/explanations/${row.id}`)
+    ).json()) as { code_diff_html: string | null };
+    expect(body.code_diff_html).toContain("d2h-");
+  });
+
   it("400s on a non-numeric id and 404s on a missing one", async () => {
     expect((await app.request("/api/explanations/abc")).status).toBe(400);
     expect((await app.request("/api/explanations/999")).status).toBe(404);
+  });
+});
+
+describe("GET /assets/diff2html.css", () => {
+  it("serves the diff2html stylesheet", async () => {
+    const res = await app.request("/assets/diff2html.css");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/css");
+    expect(await res.text()).toContain("d2h");
+  });
+});
+
+describe("renderCodeDiff", () => {
+  it("produces side-by-side diff2html markup", () => {
+    const html = renderCodeDiff("return 2;\n", "return 3;\n", "a.ts");
+    expect(html).toContain("d2h-");
+    expect(html).toContain("d2h-file-side-diff");
   });
 });
 
