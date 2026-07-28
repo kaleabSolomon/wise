@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { marked } from "marked";
+import { diffWords } from "diff";
 import type { DB } from "../store/db.js";
 import { listExplanations, getById, latestVersion } from "../store/queries.js";
 import { PAGE_HTML } from "./page.js";
@@ -7,6 +8,29 @@ import { PAGE_HTML } from "./page.js";
 /** Render display-only markdown to HTML. Synchronous; never touches a repo. */
 export function renderMarkdown(md: string): string {
   return marked.parse(md, { async: false });
+}
+
+const escapeHtml = (s: string): string =>
+  s.replace(/[&<>]/g, (c) =>
+    c === "&" ? "&amp;" : c === "<" ? "&lt;" : "&gt;",
+  );
+
+/**
+ * Inline word-level diff of old vs new prose — the headline "how your mental
+ * model should update". Additions become <ins>, removals <del>.
+ */
+export function renderExplanationDiff(
+  oldProse: string,
+  newProse: string,
+): string {
+  return diffWords(oldProse, newProse)
+    .map((part) => {
+      const text = escapeHtml(part.value);
+      if (part.added) return `<ins>${text}</ins>`;
+      if (part.removed) return `<del>${text}</del>`;
+      return text;
+    })
+    .join("");
 }
 
 /**
@@ -33,6 +57,9 @@ export function createViewerApp(db: DB): Hono {
     return c.json({
       ...row,
       prose_html: renderMarkdown(row.prose),
+      explanation_diff_html: prev
+        ? renderExplanationDiff(prev.prose, row.prose)
+        : null,
       previous: prev
         ? {
             prose: prev.prose,

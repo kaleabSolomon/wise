@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { openDb, type DB } from "../store/db.js";
 import { saveExplanation, type SaveInput } from "../store/queries.js";
-import { createViewerApp } from "./server.js";
+import { createViewerApp, renderExplanationDiff } from "./server.js";
 
 const base: SaveInput = {
   repo: "/r",
@@ -98,8 +98,46 @@ describe("GET /api/explanations/:id", () => {
     expect(body.prose_html).toContain("<strong>bold</strong>");
   });
 
+  it("has a null explanation diff before any refresh, populated after", async () => {
+    const row = saveExplanation(db, {
+      ...base,
+      prose: "doubles the base price",
+    });
+    const before = (await (
+      await app.request(`/api/explanations/${row.id}`)
+    ).json()) as { explanation_diff_html: string | null };
+    expect(before.explanation_diff_html).toBeNull();
+
+    saveExplanation(db, {
+      ...base,
+      prose: "triples the base price",
+      ast_hash: "h2",
+    });
+    const after = (await (
+      await app.request(`/api/explanations/${row.id}`)
+    ).json()) as { explanation_diff_html: string | null };
+    expect(after.explanation_diff_html).toContain("<del>doubles</del>");
+    expect(after.explanation_diff_html).toContain("<ins>triples</ins>");
+  });
+
   it("400s on a non-numeric id and 404s on a missing one", async () => {
     expect((await app.request("/api/explanations/abc")).status).toBe(400);
     expect((await app.request("/api/explanations/999")).status).toBe(404);
+  });
+});
+
+describe("renderExplanationDiff", () => {
+  it("marks additions and removals, keeps unchanged words plain", () => {
+    const html = renderExplanationDiff("the quick fox", "the slow fox");
+    expect(html).toContain("<del>quick</del>");
+    expect(html).toContain("<ins>slow</ins>");
+    expect(html).toContain("the ");
+    expect(html).toContain(" fox");
+  });
+
+  it("escapes HTML in the prose", () => {
+    const html = renderExplanationDiff("a", "a <script>");
+    expect(html).toContain("&lt;script&gt;");
+    expect(html).not.toContain("<script>");
   });
 });

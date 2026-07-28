@@ -64,6 +64,16 @@ export const PAGE_HTML = `<!doctype html>
     background: var(--code-bg); padding: 14px; border-radius: 8px; overflow-x: auto;
     margin-top: 10px; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
   }
+  .expl-diff {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    padding: 14px 16px; margin-bottom: 22px;
+  }
+  .expl-diff h3 {
+    margin: 0 0 8px; font-size: 13px; font-weight: 600; color: var(--muted);
+  }
+  .expl-diff .body { white-space: pre-wrap; }
+  ins { background: rgba(46,160,67,.22); text-decoration: none; }
+  del { background: rgba(248,81,73,.22); }
 </style>
 </head>
 <body>
@@ -98,9 +108,14 @@ export const PAGE_HTML = `<!doctype html>
     activeId = id;
     await loadList();
     const d = await (await fetch("/api/explanations/" + id)).json();
+    const diffBlock = d.explanation_diff_html
+      ? '<div class="expl-diff"><h3>What changed since you last read this</h3>' +
+        '<div class="body">' + d.explanation_diff_html + "</div></div>"
+      : "";
     detailEl.innerHTML =
       "<h2>" + esc(d.symbol) + (d.is_stale ? '<span class="badge">stale</span>' : "") + "</h2>" +
       '<div class="loc">' + esc(d.repo) + " › " + esc(d.file_path) + "</div>" +
+      diffBlock +
       '<div class="prose">' + d.prose_html + "</div>" +
       '<section class="code"><details><summary>Current code</summary><pre>' +
       esc(d.code_snapshot) + "</pre></details></section>";
