@@ -1,6 +1,8 @@
 /**
- * The viewer UI, as a self-contained HTML string (no CDN, no build asset copy).
- * Talks to the same-origin JSON API in `server.ts`.
+ * The viewer UI, as a self-contained HTML string (assets served same-origin).
+ * Navigation is two-level: projects (repos) → that project's explanations →
+ * detail. The code diff is rendered and syntax-highlighted client-side by
+ * diff2html-ui (bundles highlight.js).
  */
 export const PAGE_HTML = `<!doctype html>
 <html lang="en">
@@ -34,22 +36,30 @@ export const PAGE_HTML = `<!doctype html>
   aside {
     border-right: 1px solid var(--border); overflow-y: auto; background: var(--panel);
   }
-  aside h1 {
+  .nav-head {
+    display: flex; align-items: center; gap: 8px;
     font-size: 13px; letter-spacing: .08em; text-transform: uppercase;
-    color: var(--muted); margin: 0; padding: 16px 16px 8px;
+    color: var(--muted); padding: 16px 16px 8px;
+  }
+  .back {
+    cursor: pointer; color: var(--accent); text-transform: none; letter-spacing: 0;
+    font-size: 13px;
   }
   .item {
     padding: 10px 16px; border-bottom: 1px solid var(--border); cursor: pointer;
+    display: flex; align-items: center; gap: 8px;
   }
   .item:hover { background: var(--bg); }
   .item.active { background: var(--bg); box-shadow: inset 3px 0 0 var(--accent); }
+  .item .main { min-width: 0; flex: 1; }
   .item .sym { font-weight: 600; }
   .item .path { color: var(--muted); font-size: 12px; word-break: break-all; }
+  .item .count { color: var(--muted); font-size: 12px; white-space: nowrap; }
   .badge {
     display: inline-block; font-size: 11px; font-weight: 600; border-radius: 999px;
-    padding: 1px 8px; background: var(--stale-bg); color: var(--stale-fg); margin-left: 6px;
+    padding: 1px 8px; background: var(--stale-bg); color: var(--stale-fg);
   }
-  main { overflow-y: auto; padding: 28px 36px; max-width: 860px; }
+  main { overflow-y: auto; padding: 28px 36px; max-width: 900px; }
   main .empty { color: var(--muted); margin-top: 40px; }
   main h2 { margin: 0 0 2px; }
   main .loc { color: var(--muted); font-size: 13px; margin-bottom: 20px; word-break: break-all; }
@@ -76,58 +86,132 @@ export const PAGE_HTML = `<!doctype html>
   ins { background: rgba(46,160,67,.22); text-decoration: none; }
   del { background: rgba(248,81,73,.22); }
   .d2h { overflow-x: auto; margin-top: 10px; }
+
+  /* highlight.js tokens — compact GitHub-ish theme */
+  .hljs-comment, .hljs-quote { color: #6a737d; font-style: italic; }
+  .hljs-keyword, .hljs-selector-tag, .hljs-literal, .hljs-type, .hljs-name, .hljs-tag { color: #d73a49; }
+  .hljs-string, .hljs-doctag, .hljs-regexp, .hljs-addition { color: #032f62; }
+  .hljs-title, .hljs-title.function_, .hljs-section, .hljs-built_in { color: #6f42c1; }
+  .hljs-number, .hljs-symbol, .hljs-attr, .hljs-attribute, .hljs-meta { color: #005cc5; }
+  @media (prefers-color-scheme: dark) {
+    .hljs-comment, .hljs-quote { color: #8b949e; }
+    .hljs-keyword, .hljs-selector-tag, .hljs-literal, .hljs-type, .hljs-name, .hljs-tag { color: #ff7b72; }
+    .hljs-string, .hljs-doctag, .hljs-regexp, .hljs-addition { color: #a5d6ff; }
+    .hljs-title, .hljs-title.function_, .hljs-section, .hljs-built_in { color: #d2a8ff; }
+    .hljs-number, .hljs-symbol, .hljs-attr, .hljs-attribute, .hljs-meta { color: #79c0ff; }
+  }
 </style>
 </head>
 <body>
-  <aside>
-    <h1>Wise</h1>
-    <div id="list"></div>
-  </aside>
+  <aside><div id="nav"></div></aside>
   <main id="detail"><p class="empty">Select an explanation to read it.</p></main>
+<script src="/assets/highlight.js"></script>
+<script src="/assets/diff2html-ui.js"></script>
 <script>
-  const listEl = document.getElementById("list");
+  const navEl = document.getElementById("nav");
   const detailEl = document.getElementById("detail");
   let activeId = null;
 
   const esc = (s) => s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+  const projectName = (repo) => repo.replace(/\\/+$/, "").split("/").pop() || repo;
 
-  async function loadList() {
-    const rows = await (await fetch("/api/explanations")).json();
-    if (!rows.length) { listEl.innerHTML = '<p class="path" style="padding:12px 16px">No explanations yet.</p>'; return; }
-    listEl.innerHTML = "";
+  const LANGS = {
+    ts: "typescript", tsx: "typescript", mts: "typescript", cts: "typescript",
+    js: "javascript", jsx: "javascript", mjs: "javascript", cjs: "javascript",
+    json: "json", py: "python", go: "go", rs: "rust", java: "java", rb: "ruby",
+    c: "c", h: "c", cpp: "cpp", cc: "cpp", cs: "csharp", php: "php", sh: "bash",
+    css: "css", html: "xml", xml: "xml", yml: "yaml", yaml: "yaml", sql: "sql",
+    kt: "kotlin", swift: "swift",
+  };
+  const langOf = (file) => LANGS[(file.split(".").pop() || "").toLowerCase()] || "";
+
+  async function fetchRows() {
+    return await (await fetch("/api/explanations")).json();
+  }
+
+  async function showProjects() {
+    const rows = await fetchRows();
+    if (!rows.length) {
+      navEl.innerHTML = '<div class="nav-head">Wise</div><p class="path" style="padding:0 16px">No explanations yet.</p>';
+      return;
+    }
+    const groups = new Map();
+    for (const r of rows) {
+      if (!groups.has(r.repo)) groups.set(r.repo, []);
+      groups.get(r.repo).push(r);
+    }
+    navEl.innerHTML = '<div class="nav-head">Projects</div>';
+    for (const [repo, items] of groups) {
+      const stale = items.filter((i) => i.is_stale).length;
+      const el = document.createElement("div");
+      el.className = "item";
+      el.innerHTML =
+        '<div class="main"><div class="sym">' + esc(projectName(repo)) + "</div>" +
+        '<div class="path">' + esc(repo) + "</div></div>" +
+        '<div class="count">' + items.length + (stale ? ' · <span class="badge">' + stale + " stale</span>" : "") + "</div>";
+      el.onclick = () => showExplanations(repo);
+      navEl.appendChild(el);
+    }
+  }
+
+  async function showExplanations(repo) {
+    const rows = (await fetchRows()).filter((r) => r.repo === repo);
+    navEl.innerHTML =
+      '<div class="nav-head"><span class="back">‹ Projects</span></div>' +
+      '<div class="nav-head" style="padding-top:0">' + esc(projectName(repo)) + "</div>";
+    navEl.querySelector(".back").onclick = showProjects;
     for (const r of rows) {
       const el = document.createElement("div");
       el.className = "item" + (r.id === activeId ? " active" : "");
       el.innerHTML =
-        '<div class="sym">' + esc(r.symbol) + (r.is_stale ? '<span class="badge">stale</span>' : "") + "</div>" +
-        '<div class="path">' + esc(r.file_path) + "</div>";
-      el.onclick = () => select(r.id);
-      listEl.appendChild(el);
+        '<div class="main"><div class="sym">' + esc(r.symbol) +
+        (r.is_stale ? ' <span class="badge">stale</span>' : "") + "</div>" +
+        '<div class="path">' + esc(r.file_path) + "</div></div>";
+      el.onclick = () => {
+        activeId = r.id;
+        for (const s of navEl.querySelectorAll(".item")) s.classList.remove("active");
+        el.classList.add("active");
+        loadDetail(r.id);
+      };
+      navEl.appendChild(el);
     }
   }
 
-  async function select(id) {
-    activeId = id;
-    await loadList();
+  async function loadDetail(id) {
     const d = await (await fetch("/api/explanations/" + id)).json();
     const diffBlock = d.explanation_diff_html
       ? '<div class="expl-diff"><h3>What changed since you last read this</h3>' +
         '<div class="body">' + d.explanation_diff_html + "</div></div>"
       : "";
-    const codeSection = d.code_diff_html
-      ? '<section class="code"><details><summary>What changed in the code</summary>' +
-        '<div class="d2h">' + d.code_diff_html + "</div></details></section>"
-      : '<section class="code"><details><summary>Current code</summary><pre>' +
-        esc(d.code_snapshot) + "</pre></details></section>";
+    const codeSection = d.code_diff
+      ? '<section class="code"><details><summary>What changed in the code</summary><div id="code-diff" class="d2h"></div></details></section>'
+      : '<section class="code"><details open><summary>Current code</summary><pre><code id="cur-code"></code></pre></details></section>';
     detailEl.innerHTML =
-      "<h2>" + esc(d.symbol) + (d.is_stale ? '<span class="badge">stale</span>' : "") + "</h2>" +
+      "<h2>" + esc(d.symbol) + (d.is_stale ? ' <span class="badge">stale</span>' : "") + "</h2>" +
       '<div class="loc">' + esc(d.repo) + " › " + esc(d.file_path) + "</div>" +
       diffBlock +
       '<div class="prose">' + d.prose_html + "</div>" +
       codeSection;
+
+    if (d.code_diff && window.Diff2HtmlUI) {
+      const ui = new window.Diff2HtmlUI(
+        document.getElementById("code-diff"),
+        d.code_diff,
+        { drawFileList: false, matching: "lines", outputFormat: "side-by-side" },
+        window.hljs,
+      );
+      ui.draw();
+      ui.highlightCode();
+    } else if (!d.code_diff) {
+      const codeEl = document.getElementById("cur-code");
+      codeEl.textContent = d.code_snapshot;
+      const lang = langOf(d.file_path);
+      if (lang) codeEl.className = "language-" + lang;
+      if (window.hljs) window.hljs.highlightElement(codeEl);
+    }
   }
 
-  loadList();
+  showProjects();
 </script>
 </body>
 </html>

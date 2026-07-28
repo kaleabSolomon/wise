@@ -4,7 +4,7 @@ import { saveExplanation, type SaveInput } from "../store/queries.js";
 import {
   createViewerApp,
   renderExplanationDiff,
-  renderCodeDiff,
+  buildCodeDiff,
 } from "./server.js";
 
 const base: SaveInput = {
@@ -136,10 +136,10 @@ describe("GET /api/explanations/:id", () => {
     });
     let body = (await (
       await app.request(`/api/explanations/${row.id}`)
-    ).json()) as { code_diff_html: string | null };
-    expect(body.code_diff_html).toBeNull();
+    ).json()) as { code_diff: string | null };
+    expect(body.code_diff).toBeNull();
 
-    // code refresh → code diff present
+    // code refresh → code diff present (a unified patch)
     saveExplanation(db, {
       ...base,
       code_snapshot: "return 3;",
@@ -147,8 +147,9 @@ describe("GET /api/explanations/:id", () => {
     });
     body = (await (
       await app.request(`/api/explanations/${row.id}`)
-    ).json()) as { code_diff_html: string | null };
-    expect(body.code_diff_html).toContain("d2h-");
+    ).json()) as { code_diff: string | null };
+    expect(body.code_diff).toContain("@@");
+    expect(body.code_diff).toContain("return 3");
   });
 
   it("400s on a non-numeric id and 404s on a missing one", async () => {
@@ -157,20 +158,35 @@ describe("GET /api/explanations/:id", () => {
   });
 });
 
-describe("GET /assets/diff2html.css", () => {
+describe("static assets", () => {
   it("serves the diff2html stylesheet", async () => {
     const res = await app.request("/assets/diff2html.css");
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("text/css");
     expect(await res.text()).toContain("d2h");
   });
+
+  it("serves the diff2html-ui script", async () => {
+    const res = await app.request("/assets/diff2html-ui.js");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("javascript");
+    expect(await res.text()).toContain("Diff2HtmlUI");
+  });
+
+  it("serves the highlight.js browser bundle", async () => {
+    const res = await app.request("/assets/highlight.js");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("javascript");
+    expect(await res.text()).toContain("hljs");
+  });
 });
 
-describe("renderCodeDiff", () => {
-  it("produces side-by-side diff2html markup", () => {
-    const html = renderCodeDiff("return 2;\n", "return 3;\n", "a.ts");
-    expect(html).toContain("d2h-");
-    expect(html).toContain("d2h-file-side-diff");
+describe("buildCodeDiff", () => {
+  it("produces a unified patch of the two snapshots", () => {
+    const patch = buildCodeDiff("return 2;\n", "return 3;\n", "a.ts");
+    expect(patch).toContain("@@");
+    expect(patch).toContain("-return 2;");
+    expect(patch).toContain("+return 3;");
   });
 });
 

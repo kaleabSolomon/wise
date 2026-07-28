@@ -4,7 +4,6 @@ import { dirname, join } from "node:path";
 import { Hono } from "hono";
 import { marked } from "marked";
 import { diffWords, createTwoFilesPatch } from "diff";
-import { html as diff2html } from "diff2html";
 import type { DB } from "../store/db.js";
 import { listExplanations, getById, latestVersion } from "../store/queries.js";
 import { PAGE_HTML } from "./page.js";
@@ -37,32 +36,28 @@ export function renderExplanationDiff(
     .join("");
 }
 
-/** GitHub-style side-by-side diff of old vs current code (secondary view). */
-export function renderCodeDiff(
+/** Unified patch of old vs current code; the viewer renders + highlights it. */
+export function buildCodeDiff(
   oldCode: string,
   newCode: string,
   fileName: string,
 ): string {
-  const patch = createTwoFilesPatch(fileName, fileName, oldCode, newCode);
-  return diff2html(patch, {
-    drawFileList: false,
-    matching: "lines",
-    outputFormat: "side-by-side",
-  });
+  return createTwoFilesPatch(fileName, fileName, oldCode, newCode);
 }
 
-// diff2html's stylesheet, read from the installed package once and cached.
-let diff2htmlCssCache: string | null = null;
-function diff2htmlCss(): string {
-  if (diff2htmlCssCache === null) {
+// Read a file bundled inside an installed package, once, and cache it. Used to
+// serve diff2html / highlight.js browser assets from our own origin.
+const assetCache = new Map<string, string>();
+function packageFile(pkg: string, relPath: string): string {
+  const key = `${pkg}/${relPath}`;
+  let cached = assetCache.get(key);
+  if (cached === undefined) {
     const nodeRequire = createRequire(import.meta.url);
-    const pkgRoot = dirname(nodeRequire.resolve("diff2html/package.json"));
-    diff2htmlCssCache = readFileSync(
-      join(pkgRoot, "bundles/css/diff2html.min.css"),
-      "utf8",
-    );
+    const root = dirname(nodeRequire.resolve(`${pkg}/package.json`));
+    cached = readFileSync(join(root, relPath), "utf8");
+    assetCache.set(key, cached);
   }
-  return diff2htmlCssCache;
+  return cached;
 }
 
 /**
@@ -77,7 +72,26 @@ export function createViewerApp(db: DB): Hono {
   app.get("/", (c) => c.html(PAGE_HTML));
 
   app.get("/assets/diff2html.css", (c) =>
-    c.body(diff2htmlCss(), 200, { "content-type": "text/css; charset=utf-8" }),
+    c.body(packageFile("diff2html", "bundles/css/diff2html.min.css"), 200, {
+      "content-type": "text/css; charset=utf-8",
+    }),
+  );
+
+  app.get("/assets/highlight.js", (c) =>
+    c.body(packageFile("@highlightjs/cdn-assets", "highlight.min.js"), 200, {
+      "content-type": "text/javascript; charset=utf-8",
+    }),
+  );
+
+  // The base bundle carries no highlighter; we feed it the shared hljs above.
+  app.get("/assets/diff2html-ui.js", (c) =>
+    c.body(
+      packageFile("diff2html", "bundles/js/diff2html-ui-base.min.js"),
+      200,
+      {
+        "content-type": "text/javascript; charset=utf-8",
+      },
+    ),
   );
 
   app.get("/api/explanations", (c) => c.json(listExplanations(db)));
@@ -97,8 +111,8 @@ export function createViewerApp(db: DB): Hono {
       explanation_diff_html: prev
         ? renderExplanationDiff(prev.prose, row.prose)
         : null,
-      code_diff_html: codeChanged
-        ? renderCodeDiff(prev.code_snapshot, row.code_snapshot, row.file_path)
+      code_diff: codeChanged
+        ? buildCodeDiff(prev.code_snapshot, row.code_snapshot, row.file_path)
         : null,
       previous: prev
         ? {
