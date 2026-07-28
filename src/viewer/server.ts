@@ -42,7 +42,14 @@ export function buildCodeDiff(
   newCode: string,
   fileName: string,
 ): string {
-  return createTwoFilesPatch(fileName, fileName, oldCode, newCode);
+  // Full-file context so the viewer shows the entire code, not just the hunks.
+  const context = Math.max(
+    oldCode.split("\n").length,
+    newCode.split("\n").length,
+  );
+  return createTwoFilesPatch(fileName, fileName, oldCode, newCode, "", "", {
+    context,
+  });
 }
 
 // Read a file bundled inside an installed package, once, and cache it. Used to

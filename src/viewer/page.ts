@@ -59,11 +59,12 @@ export const PAGE_HTML = `<!doctype html>
     display: inline-block; font-size: 11px; font-weight: 600; border-radius: 999px;
     padding: 1px 8px; background: var(--stale-bg); color: var(--stale-fg);
   }
-  main { overflow-y: auto; padding: 28px 36px; max-width: 900px; }
+  main { overflow-y: auto; padding: 28px 40px; }
   main .empty { color: var(--muted); margin-top: 40px; }
   main h2 { margin: 0 0 2px; }
   main .loc { color: var(--muted); font-size: 13px; margin-bottom: 20px; word-break: break-all; }
-  .prose { border-top: 1px solid var(--border); padding-top: 20px; }
+  /* Prose reads best at a limited measure; code/diff get the full width. */
+  .prose { border-top: 1px solid var(--border); padding-top: 20px; max-width: 760px; }
   .prose :first-child { margin-top: 0; }
   .prose pre, .prose code { background: var(--code-bg); border-radius: 6px; }
   .prose pre { padding: 12px; overflow-x: auto; }
@@ -77,7 +78,7 @@ export const PAGE_HTML = `<!doctype html>
   }
   .expl-diff {
     background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
-    padding: 14px 16px; margin-bottom: 22px;
+    padding: 14px 16px; margin-bottom: 22px; max-width: 760px;
   }
   .expl-diff h3 {
     margin: 0 0 8px; font-size: 13px; font-weight: 600; color: var(--muted);
@@ -197,7 +198,12 @@ export const PAGE_HTML = `<!doctype html>
       const ui = new window.Diff2HtmlUI(
         document.getElementById("code-diff"),
         d.code_diff,
-        { drawFileList: false, matching: "lines", outputFormat: "side-by-side" },
+        {
+          drawFileList: false,
+          matching: "lines",
+          outputFormat: "side-by-side",
+          colorScheme: "auto",
+        },
         window.hljs,
       );
       ui.draw();
