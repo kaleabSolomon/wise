@@ -13,7 +13,7 @@
 
 import Database from "better-sqlite3";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { mkdirSync } from "node:fs";
 
 export type DB = Database.Database;
@@ -41,11 +41,26 @@ export function resolveDbPath(): string {
 }
 
 /**
+ * Warn (on stderr, never stdout — that's the MCP channel) when the store sits
+ * somewhere the OS reaps, e.g. `/tmp`. Silent data loss is the worst outcome;
+ * a loud warning turns it into an obvious misconfiguration.
+ */
+function warnIfEphemeral(dbPath: string): void {
+  const abs = resolve(dbPath);
+  if (/^\/(private\/)?tmp\//.test(abs) || /^\/var\/tmp\//.test(abs)) {
+    console.error(
+      `wise: WARNING — the store at ${abs} is under a temporary directory the OS clears (reboots / periodic cleanup). Data will not persist. Set WISE_DB_PATH to a durable path (e.g. under your home directory).`,
+    );
+  }
+}
+
+/**
  * Open (creating if needed) the store and bring its schema up to date.
  * Idempotent: safe to call on every process start.
  */
 export function openDb(dbPath: string = resolveDbPath()): DB {
   if (dbPath !== ":memory:") {
+    warnIfEphemeral(dbPath);
     // The store dir may not exist yet on first run.
     mkdirSync(dirname(dbPath), { recursive: true });
   }
