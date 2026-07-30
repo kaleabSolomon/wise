@@ -5,7 +5,12 @@ import { Hono } from "hono";
 import { marked } from "marked";
 import { diffWords, createTwoFilesPatch } from "diff";
 import type { DB } from "../store/db.js";
-import { listExplanations, getById, latestVersion } from "../store/queries.js";
+import {
+  listExplanations,
+  getById,
+  latestVersion,
+  deleteExplanation,
+} from "../store/queries.js";
 import { PAGE_HTML } from "./page.js";
 
 /** Render display-only markdown to HTML. Synchronous; never touches a repo. */
@@ -129,6 +134,14 @@ export function createViewerApp(db: DB): Hono {
           }
         : null,
     });
+  });
+
+  app.delete("/api/explanations/:id", (c) => {
+    const id = Number(c.req.param("id"));
+    if (!Number.isInteger(id)) return c.json({ error: "invalid id" }, 400);
+    return deleteExplanation(db, id)
+      ? c.json({ ok: true })
+      : c.json({ error: "not found" }, 404);
   });
 
   return app;

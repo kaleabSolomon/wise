@@ -62,6 +62,17 @@ export const PAGE_HTML = `<!doctype html>
   main { overflow-y: auto; padding: 28px 40px; }
   main .empty { color: var(--muted); margin-top: 40px; }
   main h2 { margin: 0 0 2px; }
+  .detail-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+  .actions { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+  .confirm-q { color: var(--muted); font-size: 13px; }
+  button.del {
+    font: inherit; font-size: 12px; cursor: pointer; padding: 4px 10px;
+    border-radius: 6px; border: 1px solid var(--border); background: transparent;
+    color: var(--muted);
+  }
+  button.del:hover { color: var(--fg); border-color: var(--muted); }
+  button.del.danger { color: #fff; background: #dc2626; border-color: #dc2626; }
+  button.del.danger:hover { background: #b91c1c; }
   main .loc { color: var(--muted); font-size: 13px; margin-bottom: 20px; word-break: break-all; }
   .prose { border-top: 1px solid var(--border); padding-top: 20px; }
   .prose :first-child { margin-top: 0; }
@@ -131,6 +142,7 @@ export const PAGE_HTML = `<!doctype html>
   const navEl = document.getElementById("nav");
   const detailEl = document.getElementById("detail");
   let activeId = null;
+  let currentRepo = null;
 
   const esc = (s) => s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
   const projectName = (repo) => repo.replace(/\\/+$/, "").split("/").pop() || repo;
@@ -211,6 +223,7 @@ export const PAGE_HTML = `<!doctype html>
   }
 
   async function showExplanations(repo) {
+    currentRepo = repo;
     const rows = (await fetchRows()).filter((r) => r.repo === repo);
     navEl.innerHTML =
       '<div class="nav-head"><span class="back">‹ Projects</span></div>' +
@@ -243,7 +256,10 @@ export const PAGE_HTML = `<!doctype html>
       ? '<h3 class="code-h">What changed in the code</h3><div id="code-diff" class="d2h"></div>'
       : '<h3 class="code-h">Current code</h3><pre class="codeblock"><code id="cur-code"></code></pre>';
     detailEl.innerHTML =
+      '<div class="detail-head">' +
       "<h2>" + esc(d.symbol) + (d.is_stale ? ' <span class="badge">stale</span>' : "") + "</h2>" +
+      '<div class="actions" id="actions"></div>' +
+      "</div>" +
       '<div class="loc">' + esc(d.repo) + " › " + esc(d.file_path) + "</div>" +
       '<div class="detail-cols">' +
       '<div class="detail-left">' + diffBlock + '<div class="prose">' + d.prose_html + "</div></div>" +
@@ -273,7 +289,30 @@ export const PAGE_HTML = `<!doctype html>
       if (window.hljs) window.hljs.highlightElement(codeEl);
     }
 
+    wireDelete(id);
     initGutter();
+  }
+
+  function wireDelete(id) {
+    const actions = document.getElementById("actions");
+    if (!actions) return;
+    actions.innerHTML = '<button class="del" id="del-btn">Delete</button>';
+    document.getElementById("del-btn").onclick = () => {
+      actions.innerHTML =
+        '<span class="confirm-q">Delete this explanation?</span>' +
+        '<button class="del danger" id="del-yes">Delete</button>' +
+        '<button class="del" id="del-no">Cancel</button>';
+      document.getElementById("del-no").onclick = () => wireDelete(id);
+      document.getElementById("del-yes").onclick = async () => {
+        const res = await fetch("/api/explanations/" + id, { method: "DELETE" });
+        if (!res.ok) return;
+        activeId = null;
+        detailEl.innerHTML = '<p class="empty">Explanation deleted.</p>';
+        const rows = await fetchRows();
+        if (currentRepo && rows.some((r) => r.repo === currentRepo)) showExplanations(currentRepo);
+        else showProjects();
+      };
+    };
   }
 
   showProjects();
