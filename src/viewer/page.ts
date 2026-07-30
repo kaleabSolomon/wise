@@ -63,22 +63,29 @@ export const PAGE_HTML = `<!doctype html>
   main .empty { color: var(--muted); margin-top: 40px; }
   main h2 { margin: 0 0 2px; }
   main .loc { color: var(--muted); font-size: 13px; margin-bottom: 20px; word-break: break-all; }
-  /* Prose reads best at a limited measure; code/diff get the full width. */
-  .prose { border-top: 1px solid var(--border); padding-top: 20px; max-width: 760px; }
+  .prose { border-top: 1px solid var(--border); padding-top: 20px; }
   .prose :first-child { margin-top: 0; }
   .prose pre, .prose code { background: var(--code-bg); border-radius: 6px; }
   .prose pre { padding: 12px; overflow-x: auto; }
   .prose code { padding: 1px 5px; font-size: 90%; }
   .prose pre code { padding: 0; }
-  section.code { margin-top: 28px; }
-  section.code summary { cursor: pointer; color: var(--muted); font-size: 13px; }
-  section.code pre {
+  /* Detail: explanation on the left, code on the right — uses the full width. */
+  .detail-cols {
+    display: grid; grid-template-columns: minmax(300px, 440px) minmax(0, 1fr);
+    gap: 30px; align-items: start;
+  }
+  .detail-right { min-width: 0; }
+  .code-h { margin: 0 0 8px; font-size: 13px; font-weight: 600; color: var(--muted); }
+  pre.codeblock {
     background: var(--code-bg); padding: 14px; border-radius: 8px; overflow-x: auto;
-    margin-top: 10px; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+    margin: 0; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  @media (max-width: 1100px) {
+    .detail-cols { grid-template-columns: 1fr; }
   }
   .expl-diff {
     background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
-    padding: 14px 16px; margin-bottom: 22px; max-width: 760px;
+    padding: 14px 16px; margin-bottom: 22px;
   }
   .expl-diff h3 {
     margin: 0 0 8px; font-size: 13px; font-weight: 600; color: var(--muted);
@@ -86,7 +93,7 @@ export const PAGE_HTML = `<!doctype html>
   .expl-diff .body { white-space: pre-wrap; }
   ins { background: rgba(46,160,67,.22); text-decoration: none; }
   del { background: rgba(248,81,73,.22); }
-  .d2h { overflow-x: auto; margin-top: 10px; }
+  .d2h { overflow-x: auto; }
 
   /* highlight.js tokens — compact GitHub-ish theme */
   .hljs-comment, .hljs-quote { color: #6a737d; font-style: italic; }
@@ -185,14 +192,15 @@ export const PAGE_HTML = `<!doctype html>
         '<div class="body">' + d.explanation_diff_html + "</div></div>"
       : "";
     const codeSection = d.code_diff
-      ? '<section class="code"><details><summary>What changed in the code</summary><div id="code-diff" class="d2h"></div></details></section>'
-      : '<section class="code"><details open><summary>Current code</summary><pre><code id="cur-code"></code></pre></details></section>';
+      ? '<h3 class="code-h">What changed in the code</h3><div id="code-diff" class="d2h"></div>'
+      : '<h3 class="code-h">Current code</h3><pre class="codeblock"><code id="cur-code"></code></pre>';
     detailEl.innerHTML =
       "<h2>" + esc(d.symbol) + (d.is_stale ? ' <span class="badge">stale</span>' : "") + "</h2>" +
       '<div class="loc">' + esc(d.repo) + " › " + esc(d.file_path) + "</div>" +
-      diffBlock +
-      '<div class="prose">' + d.prose_html + "</div>" +
-      codeSection;
+      '<div class="detail-cols">' +
+      '<div class="detail-left">' + diffBlock + '<div class="prose">' + d.prose_html + "</div></div>" +
+      '<div class="detail-right">' + codeSection + "</div>" +
+      "</div>";
 
     if (d.code_diff && window.Diff2HtmlUI) {
       const ui = new window.Diff2HtmlUI(
