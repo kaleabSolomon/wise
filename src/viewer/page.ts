@@ -69,12 +69,22 @@ export const PAGE_HTML = `<!doctype html>
   .prose pre { padding: 12px; overflow-x: auto; }
   .prose code { padding: 1px 5px; font-size: 90%; }
   .prose pre code { padding: 0; }
-  /* Detail: explanation on the left, code on the right — uses the full width. */
+  /* Detail: explanation left, code right, with a draggable divider between. */
   .detail-cols {
-    display: grid; grid-template-columns: minmax(300px, 440px) minmax(0, 1fr);
-    gap: 30px; align-items: start;
+    display: grid;
+    grid-template-columns: var(--left-w, 440px) 11px minmax(0, 1fr);
+    align-items: stretch;
   }
-  .detail-right { min-width: 0; }
+  .detail-left { padding-right: 22px; min-width: 0; }
+  .detail-right { padding-left: 22px; min-width: 0; }
+  .gutter { cursor: col-resize; position: relative; }
+  .gutter::before {
+    content: ""; position: absolute; top: 2px; bottom: 2px; left: 50%;
+    width: 1px; transform: translateX(-50%); background: var(--border);
+  }
+  .gutter:hover::before, .gutter.dragging::before {
+    background: var(--accent); width: 2px;
+  }
   .code-h { margin: 0 0 8px; font-size: 13px; font-weight: 600; color: var(--muted); }
   pre.codeblock {
     background: var(--code-bg); padding: 14px; border-radius: 8px; overflow-x: auto;
@@ -82,6 +92,8 @@ export const PAGE_HTML = `<!doctype html>
   }
   @media (max-width: 1100px) {
     .detail-cols { grid-template-columns: 1fr; }
+    .detail-left, .detail-right { padding: 0; }
+    .gutter { display: none; }
   }
   .expl-diff {
     background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
@@ -132,6 +144,42 @@ export const PAGE_HTML = `<!doctype html>
     kt: "kotlin", swift: "swift",
   };
   const langOf = (file) => LANGS[(file.split(".").pop() || "").toLowerCase()] || "";
+
+  // Restore the saved left-column width (set on :root so it survives re-renders).
+  try {
+    const saved = localStorage.getItem("wise:leftWidth");
+    if (saved) document.documentElement.style.setProperty("--left-w", saved);
+  } catch (_) {}
+
+  function initGutter() {
+    const gutter = document.getElementById("gutter");
+    if (!gutter) return;
+    gutter.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      const rect = document.querySelector(".detail-cols").getBoundingClientRect();
+      gutter.classList.add("dragging");
+      document.body.style.userSelect = "none";
+      const onMove = (ev) => {
+        let w = ev.clientX - rect.left;
+        w = Math.max(260, Math.min(w, rect.width - 340));
+        document.documentElement.style.setProperty("--left-w", w + "px");
+      };
+      const onUp = () => {
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("mouseup", onUp);
+        gutter.classList.remove("dragging");
+        document.body.style.userSelect = "";
+        try {
+          localStorage.setItem(
+            "wise:leftWidth",
+            getComputedStyle(document.documentElement).getPropertyValue("--left-w").trim(),
+          );
+        } catch (_) {}
+      };
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
+    });
+  }
 
   async function fetchRows() {
     return await (await fetch("/api/explanations")).json();
@@ -199,6 +247,7 @@ export const PAGE_HTML = `<!doctype html>
       '<div class="loc">' + esc(d.repo) + " › " + esc(d.file_path) + "</div>" +
       '<div class="detail-cols">' +
       '<div class="detail-left">' + diffBlock + '<div class="prose">' + d.prose_html + "</div></div>" +
+      '<div class="gutter" id="gutter"></div>' +
       '<div class="detail-right">' + codeSection + "</div>" +
       "</div>";
 
@@ -223,6 +272,8 @@ export const PAGE_HTML = `<!doctype html>
       if (lang) codeEl.className = "language-" + lang;
       if (window.hljs) window.hljs.highlightElement(codeEl);
     }
+
+    initGutter();
   }
 
   showProjects();
