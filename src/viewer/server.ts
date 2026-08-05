@@ -1,6 +1,7 @@
 import { createRequire } from "node:module";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { Hono } from "hono";
 import { marked } from "marked";
 import { diffWords, createTwoFilesPatch } from "diff";
@@ -11,7 +12,10 @@ import {
   latestVersion,
   deleteExplanation,
 } from "../store/queries.js";
-import { PAGE_HTML } from "./page.js";
+
+// Built browser assets (index.html, styles.css, app.js) live next to this
+// module: src/viewer/public in dev, dist/viewer/public in the build.
+const publicDir = fileURLToPath(new URL("./public/", import.meta.url));
 
 /** Render display-only markdown to HTML. Synchronous; never touches a repo. */
 export function renderMarkdown(md: string): string {
@@ -81,7 +85,25 @@ function packageFile(pkg: string, relPath: string): string {
 export function createViewerApp(db: DB): Hono {
   const app = new Hono();
 
-  app.get("/", (c) => c.html(PAGE_HTML));
+  app.get("/", (c) =>
+    c.html(readFileSync(join(publicDir, "index.html"), "utf8")),
+  );
+
+  app.get("/styles.css", (c) =>
+    c.body(readFileSync(join(publicDir, "styles.css"), "utf8"), 200, {
+      "content-type": "text/css; charset=utf-8",
+    }),
+  );
+
+  app.get("/app.js", (c) => {
+    const file = join(publicDir, "app.js");
+    const body = existsSync(file)
+      ? readFileSync(file, "utf8")
+      : `console.error("wise viewer: app.js is not built — run 'pnpm build:viewer'");`;
+    return c.body(body, 200, {
+      "content-type": "text/javascript; charset=utf-8",
+    });
+  });
 
   app.get("/assets/diff2html.css", (c) =>
     c.body(packageFile("diff2html", "bundles/css/diff2html.min.css"), 200, {

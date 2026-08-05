@@ -3,7 +3,14 @@ import tseslint from "typescript-eslint";
 import prettier from "eslint-config-prettier";
 
 export default tseslint.config(
-  { ignores: ["dist/", "node_modules/", "coverage/"] },
+  {
+    ignores: [
+      "dist/",
+      "node_modules/",
+      "coverage/",
+      "src/viewer/public/app.js",
+    ],
+  },
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   {
@@ -14,10 +21,14 @@ export default tseslint.config(
       },
     },
   },
-  // JS config files (this one) live outside the tsconfig; skip type-aware rules.
+  // Plain JS/MJS (this config, the viewer build script) live outside any
+  // tsconfig; skip type-aware rules and declare the Node globals they use.
   {
-    files: ["**/*.js"],
+    files: ["**/*.js", "**/*.mjs"],
     extends: [tseslint.configs.disableTypeChecked],
+    languageOptions: {
+      globals: { process: "readonly", console: "readonly" },
+    },
   },
   // Casting SQLite's `unknown` rows to typed shapes is the store's one sanctioned
   // boundary; keep the type-checked unsafe rules but allow the cast itself.

@@ -45,14 +45,21 @@ describe("GET /api/explanations", () => {
   });
 });
 
-describe("GET /", () => {
-  it("serves the self-contained viewer page", async () => {
+describe("static viewer files", () => {
+  it("serves index.html at /", async () => {
     const res = await app.request("/");
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("text/html");
     const html = await res.text();
     expect(html).toContain("<title>Wise</title>");
-    expect(html).toContain("/api/explanations");
+    expect(html).toContain('src="/app.js"');
+  });
+
+  it("serves the stylesheet at /styles.css", async () => {
+    const res = await app.request("/styles.css");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/css");
+    expect(await res.text()).toContain(".detail-cols");
   });
 });
 
