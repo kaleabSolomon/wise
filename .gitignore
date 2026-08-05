@@ -5,6 +5,9 @@ node_modules/
 # Build output
 dist/
 *.tsbuildinfo
+# Viewer client bundle emitted next to its source assets during `pnpm dev`
+src/viewer/public/app.js
+src/viewer/public/app.js.map
 
 # Environment / secrets
 .env

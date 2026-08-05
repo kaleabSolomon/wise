@@ -6,6 +6,7 @@ import {
   markStale,
   clearStale,
   latestVersion,
+  deleteExplanation,
   type SaveInput,
 } from "./queries.js";
 
@@ -70,6 +71,22 @@ describe("history", () => {
     expect(
       db.prepare("SELECT COUNT(*) c FROM explanation_versions").get(),
     ).toEqual({ c: 2 });
+  });
+});
+
+describe("deleteExplanation", () => {
+  it("removes the explanation and cascades its version history", () => {
+    const row = saveExplanation(db, base);
+    saveExplanation(db, { ...base, prose: "gen2", ast_hash: "h2" });
+    expect(deleteExplanation(db, row.id)).toBe(true);
+    expect(getByLocator(db, base)).toBeUndefined();
+    expect(
+      db.prepare("SELECT COUNT(*) c FROM explanation_versions").get(),
+    ).toEqual({ c: 0 });
+  });
+
+  it("returns false for an unknown id", () => {
+    expect(deleteExplanation(db, 999)).toBe(false);
   });
 });
 

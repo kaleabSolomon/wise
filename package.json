@@ -21,10 +21,11 @@
     ]
   },
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "build": "tsc -p tsconfig.build.json",
+    "dev": "node scripts/build-viewer.mjs --dev && tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.build.json && node scripts/build-viewer.mjs",
+    "build:viewer": "node scripts/build-viewer.mjs",
     "start": "node dist/index.js",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p src/viewer/client/tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint .",
@@ -48,6 +49,7 @@
     "@eslint/js": "^10.0.1",
     "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.10.0",
+    "esbuild": "^0.28.1",
     "eslint": "^10.8.0",
     "eslint-config-prettier": "^10.1.8",
     "lefthook": "^2.1.10",

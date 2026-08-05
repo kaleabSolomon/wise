@@ -26,10 +26,12 @@ This produces `dist/index.js` — the entry for both the MCP server and the view
 claude mcp add wise -- node /absolute/path/to/wise/dist/index.js
 ```
 
-To keep the store off your real `~/.wise` while trying it out, sandbox it:
+To keep the store off your real `~/.wise` while trying it out, point it at a
+separate **durable** path (anywhere under your home — never `/tmp`, which macOS
+wipes on reboot and after a few days idle):
 
 ```sh
-claude mcp add wise --env WISE_DB_PATH=/tmp/wise-test.db -- node /absolute/path/to/wise/dist/index.js
+claude mcp add wise --env WISE_DB_PATH=$HOME/.wise/test.db -- node /absolute/path/to/wise/dist/index.js
 ```
 
 ### Claude Desktop

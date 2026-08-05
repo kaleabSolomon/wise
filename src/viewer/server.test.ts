@@ -45,14 +45,21 @@ describe("GET /api/explanations", () => {
   });
 });
 
-describe("GET /", () => {
-  it("serves the self-contained viewer page", async () => {
+describe("static viewer files", () => {
+  it("serves index.html at /", async () => {
     const res = await app.request("/");
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("text/html");
     const html = await res.text();
     expect(html).toContain("<title>Wise</title>");
-    expect(html).toContain("/api/explanations");
+    expect(html).toContain('src="/app.js"');
+  });
+
+  it("serves the stylesheet at /styles.css", async () => {
+    const res = await app.request("/styles.css");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/css");
+    expect(await res.text()).toContain(".detail-cols");
   });
 });
 
@@ -155,6 +162,31 @@ describe("GET /api/explanations/:id", () => {
   it("400s on a non-numeric id and 404s on a missing one", async () => {
     expect((await app.request("/api/explanations/abc")).status).toBe(400);
     expect((await app.request("/api/explanations/999")).status).toBe(404);
+  });
+});
+
+describe("DELETE /api/explanations/:id", () => {
+  it("deletes an explanation, then it's gone from the list", async () => {
+    const row = saveExplanation(db, base);
+    const del = await app.request(`/api/explanations/${row.id}`, {
+      method: "DELETE",
+    });
+    expect(del.status).toBe(200);
+
+    const list = (await (
+      await app.request("/api/explanations")
+    ).json()) as unknown[];
+    expect(list).toHaveLength(0);
+    expect((await app.request(`/api/explanations/${row.id}`)).status).toBe(404);
+  });
+
+  it("404s when deleting a missing id, 400s on a bad id", async () => {
+    expect(
+      (await app.request("/api/explanations/999", { method: "DELETE" })).status,
+    ).toBe(404);
+    expect(
+      (await app.request("/api/explanations/abc", { method: "DELETE" })).status,
+    ).toBe(400);
   });
 });
 

@@ -123,6 +123,13 @@ export function clearStale(db: DB, loc: Locator): boolean {
   return setStale(db, loc, 0);
 }
 
+/** Delete an explanation and (via FK cascade) its version history. */
+export function deleteExplanation(db: DB, id: number): boolean {
+  return (
+    db.prepare(`DELETE FROM explanations WHERE id = ?`).run(id).changes > 0
+  );
+}
+
 function setStale(db: DB, loc: Locator, value: 0 | 1): boolean {
   const info = db
     .prepare(
