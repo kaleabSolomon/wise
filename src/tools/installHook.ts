@@ -6,8 +6,9 @@ import {
   chmodSync,
   mkdirSync,
 } from "node:fs";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { z } from "zod";
+import { canonicalize } from "../store/locator.js";
 
 export const installHookShape = {
   repo: z
@@ -60,7 +61,10 @@ export function runInstallHook(
   input: InstallHookArgs,
   wiring: HookWiring,
 ): InstallResult {
-  const repo = resolve(input.repo);
+  // Canonical form, because this path is baked into the hook and later used to
+  // key store rows: a symlinked or differently-cased spelling here would flag
+  // nothing.
+  const repo = canonicalize(input.repo);
   const gitDir = join(repo, ".git");
   if (!existsSync(gitDir) || !statSync(gitDir).isDirectory()) {
     return {

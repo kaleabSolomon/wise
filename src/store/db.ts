@@ -15,11 +15,12 @@ import Database from "better-sqlite3";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { mkdirSync } from "node:fs";
+import { normalizeLocator } from "./locator.js";
 
 export type DB = Database.Database;
 
 /** Current schema version. Bump when adding a migration below. */
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 /**
  * The directory that holds the store. Defaults to `~/.wise`; overridable with
@@ -135,6 +136,122 @@ const MIGRATIONS: ReadonlyArray<(db: DB) => void> = [
     db.exec(
       `CREATE INDEX idx_versions_explanation ON explanation_versions (explanation_id, created_at DESC);`,
     );
+  },
+
+  // v1 -> v2: canonicalize every stored locator.
+  //
+  // Locators used to be stored exactly as the caller spelled them, so one
+  // symbol could occupy several rows — `src/a.ts`, `./src/a.ts`, an absolute
+  // path, a repo with a trailing slash — and a differently-spelled read would
+  // find none of them. Rewrite each row into canonical form; where two rows
+  // collapse onto the same locator, merge them rather than discard either.
+  (db) => {
+    interface Generation {
+      id: number;
+      prose: string;
+      code_snapshot: string;
+      ast_hash: string;
+      is_stale: number;
+      updated_at: number;
+    }
+    interface Row extends Generation {
+      repo: string;
+      file_path: string;
+      symbol: string;
+    }
+
+    const rows = db
+      .prepare(
+        `SELECT id, repo, file_path, symbol, prose, code_snapshot, ast_hash, is_stale, updated_at
+         FROM explanations`,
+      )
+      .all() as Row[];
+
+    const twinAt = db.prepare(
+      `SELECT id, prose, code_snapshot, ast_hash, is_stale, updated_at FROM explanations
+       WHERE repo = ? AND file_path = ? AND symbol = ? AND id != ?`,
+    );
+    const rewrite = db.prepare(
+      `UPDATE explanations SET repo = ?, file_path = ?, symbol = ? WHERE id = ?`,
+    );
+    const addVersion = db.prepare(
+      `INSERT INTO explanation_versions (explanation_id, prose, code_snapshot, ast_hash, created_at)
+       VALUES (?, ?, ?, ?, ?)`,
+    );
+    const reparentVersions = db.prepare(
+      `UPDATE explanation_versions SET explanation_id = ? WHERE explanation_id = ?`,
+    );
+    const setCurrent = db.prepare(
+      `UPDATE explanations
+       SET prose = ?, code_snapshot = ?, ast_hash = ?, is_stale = ?, updated_at = ?
+       WHERE id = ?`,
+    );
+    const dropRow = db.prepare(`DELETE FROM explanations WHERE id = ?`);
+
+    let rewritten = 0;
+    let merged = 0;
+
+    for (const row of rows) {
+      const normalized = normalizeLocator({
+        repo: row.repo,
+        file: row.file_path,
+        symbol: row.symbol,
+      });
+      // A locator we can't make sense of (one already pointing outside its
+      // repo) is left exactly as it was: an untouched row beats a guessed one.
+      if (!normalized.ok) continue;
+
+      const { repo, file_path, symbol } = normalized.locator;
+      if (
+        repo === row.repo &&
+        file_path === row.file_path &&
+        symbol === row.symbol
+      ) {
+        continue;
+      }
+
+      const twin = twinAt.get(repo, file_path, symbol, row.id) as
+        Generation | undefined;
+      if (!twin) {
+        rewrite.run(repo, file_path, symbol, row.id);
+        rewritten++;
+        continue;
+      }
+
+      // Two spellings of one symbol. Keep the twin's row, let the more recently
+      // updated generation be the current one, and push the other into history
+      // — along with the losing row's own versions, re-parented first so the FK
+      // cascade on delete can't take them with it.
+      const [newer, older]: [Generation, Generation] =
+        row.updated_at > twin.updated_at ? [row, twin] : [twin, row];
+      addVersion.run(
+        twin.id,
+        older.prose,
+        older.code_snapshot,
+        older.ast_hash,
+        older.updated_at,
+      );
+      reparentVersions.run(twin.id, row.id);
+      setCurrent.run(
+        newer.prose,
+        newer.code_snapshot,
+        newer.ast_hash,
+        // Stale wins: a false flag self-heals on the next read, a missing one
+        // silently hides a change.
+        row.is_stale === 1 || twin.is_stale === 1 ? 1 : 0,
+        newer.updated_at,
+        twin.id,
+      );
+      dropRow.run(row.id);
+      merged++;
+    }
+
+    if (rewritten > 0 || merged > 0) {
+      const mergeNote = merged > 0 ? `, merged ${merged} duplicate(s)` : "";
+      console.error(
+        `wise: normalized ${rewritten} explanation locator(s)${mergeNote}.`,
+      );
+    }
   },
 ];
 

@@ -7,7 +7,6 @@
  *   - the localhost HTTP viewer for reading explanations
  */
 
-import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -17,6 +16,7 @@ import { saveExplanationShape, runSave } from "./tools/save.js";
 import { getExplanationShape, runGet, renderGetResult } from "./tools/get.js";
 import { installHookShape, runInstallHook } from "./tools/installHook.js";
 import { flagStaleForHead } from "./hook/flag.js";
+import { canonicalize } from "./store/locator.js";
 import { createViewerApp } from "./viewer/server.js";
 
 const VIEWER_PORT = Number(process.env["WISE_VIEWER_PORT"] ?? 4319);
@@ -121,7 +121,8 @@ function runHookFlag(repoArg: string | undefined): void {
     return;
   }
   try {
-    const { flagged } = flagStaleForHead(openDb(), resolve(repoArg));
+    // Same canonical form the store keys by — see store/locator.ts.
+    const { flagged } = flagStaleForHead(openDb(), canonicalize(repoArg));
     console.error(`wise: flagged ${flagged} explanation(s) stale`);
   } catch (err) {
     console.error(`wise: hook-flag failed: ${String(err)}`);

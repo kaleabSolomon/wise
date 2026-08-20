@@ -1,7 +1,7 @@
-import { resolve } from "node:path";
 import { z } from "zod";
 import type { DB } from "../store/db.js";
 import { saveExplanation } from "../store/queries.js";
+import { normalizeLocator } from "../store/locator.js";
 import { locateInFile } from "../code/locate.js";
 import { structuralHash } from "../code/hash.js";
 
@@ -10,7 +10,9 @@ export const saveExplanationShape = {
   file: z
     .string()
     .min(1)
-    .describe("Path to the source file, relative to the repo root"),
+    .describe(
+      "Path to the source file — relative to the repo root, or absolute",
+    ),
   symbol: z
     .string()
     .min(1)
@@ -29,35 +31,41 @@ export type SaveExplanationArgs = {
 
 export type SaveResult =
   | { ok: true; id: number; message: string }
-  | { ok: false; error: "not_found" | "ambiguous"; message: string };
+  | {
+      ok: false;
+      error: "not_found" | "ambiguous" | "outside_repo";
+      message: string;
+    };
 
 /**
  * Core of `save_explanation`: locate the symbol on disk, snapshot + hash its
  * current code, and persist the prose alongside. No MCP concerns here.
  */
 export function runSave(db: DB, input: SaveExplanationArgs): SaveResult {
-  const absPath = resolve(input.repo, input.file);
-  const located = locateInFile(absPath, input.symbol);
+  const normalized = normalizeLocator(input);
+  if (!normalized.ok) {
+    return { ok: false, error: normalized.error, message: normalized.message };
+  }
+  const { locator, absPath } = normalized;
 
+  const located = locateInFile(absPath, locator.symbol);
   if (!located.ok) {
     if (located.reason === "not_found") {
       return {
         ok: false,
         error: "not_found",
-        message: `Symbol "${input.symbol}" not found in ${input.file}.`,
+        message: `Symbol "${locator.symbol}" not found in ${locator.file_path}.`,
       };
     }
     return {
       ok: false,
       error: "ambiguous",
-      message: `Symbol "${input.symbol}" matches ${located.count} declarations in ${input.file}; qualify it (e.g. "Class.method").`,
+      message: `Symbol "${locator.symbol}" matches ${located.count} declarations in ${locator.file_path}; qualify it (e.g. "Class.method").`,
     };
   }
 
   const row = saveExplanation(db, {
-    repo: input.repo,
-    file_path: input.file,
-    symbol: input.symbol,
+    ...locator,
     prose: input.prose,
     code_snapshot: located.symbol.snapshot,
     ast_hash: structuralHash(located.symbol.node),
@@ -66,6 +74,6 @@ export function runSave(db: DB, input: SaveExplanationArgs): SaveResult {
   return {
     ok: true,
     id: row.id,
-    message: `Saved explanation for ${input.symbol} (${located.symbol.kind}).`,
+    message: `Saved explanation for ${locator.symbol} (${located.symbol.kind}).`,
   };
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterAll } from "vitest";
-import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, writeFileSync, rmSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openDb, type DB } from "../store/db.js";
@@ -14,7 +14,9 @@ function dup() {}
 const dup = 1;
 `;
 
-const repo = mkdtempSync(join(tmpdir(), "wise-save-"));
+// Canonical form: on macOS `tmpdir()` sits under the `/var` -> `/private/var`
+// symlink, and stored locators are always canonical (see store/locator.ts).
+const repo = realpathSync.native(mkdtempSync(join(tmpdir(), "wise-save-")));
 writeFileSync(join(repo, "pricing.ts"), SRC);
 afterAll(() => rmSync(repo, { recursive: true, force: true }));
 

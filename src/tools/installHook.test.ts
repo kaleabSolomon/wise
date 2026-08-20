@@ -1,6 +1,12 @@
 import { describe, it, expect, afterAll } from "vitest";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, readFileSync, statSync } from "node:fs";
+import {
+  mkdtempSync,
+  writeFileSync,
+  readFileSync,
+  statSync,
+  realpathSync,
+} from "node:fs";
 import { rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -20,7 +26,9 @@ const wiring: HookWiring = {
 const dirs: string[] = [];
 
 function newGitRepo(): string {
-  const dir = mkdtempSync(join(tmpdir(), "wise-install-"));
+  // Canonical form: install bakes this path into the hook and the store keys
+  // rows by it, so the test repo must be spelled the way wise stores it.
+  const dir = realpathSync.native(mkdtempSync(join(tmpdir(), "wise-install-")));
   dirs.push(dir);
   execFileSync("git", ["init", "-q", dir]);
   execFileSync("git", ["-C", dir, "config", "user.email", "t@e.com"]);
@@ -76,7 +84,9 @@ describe("runInstallHook", () => {
   });
 
   it("reports when the target is not a git repo", () => {
-    const dir = mkdtempSync(join(tmpdir(), "wise-nongit-"));
+    const dir = realpathSync.native(
+      mkdtempSync(join(tmpdir(), "wise-nongit-")),
+    );
     dirs.push(dir);
     const r = runInstallHook({ repo: dir }, wiring);
     expect(r).toMatchObject({ ok: false, error: "not_a_git_repo" });

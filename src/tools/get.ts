@@ -1,8 +1,8 @@
 import { existsSync } from "node:fs";
-import { resolve } from "node:path";
 import { z } from "zod";
 import type { DB } from "../store/db.js";
 import { getByLocator, markStale, clearStale } from "../store/queries.js";
+import { normalizeLocator } from "../store/locator.js";
 import { locateInFile } from "../code/locate.js";
 import { structuralHash } from "../code/hash.js";
 
@@ -11,7 +11,9 @@ export const getExplanationShape = {
   file: z
     .string()
     .min(1)
-    .describe("Path to the source file, relative to the repo root"),
+    .describe(
+      "Path to the source file — relative to the repo root, or absolute",
+    ),
   symbol: z
     .string()
     .min(1)
@@ -39,7 +41,8 @@ export type GetResult =
       symbol: string;
       reason: "not_found" | "ambiguous";
       prose: string;
-    };
+    }
+  | { status: "outside_repo"; symbol: string; message: string };
 
 /**
  * Core of `get_explanation`: fetch the stored row, re-read the symbol on disk,
@@ -47,25 +50,33 @@ export type GetResult =
  * materials the agent needs to refresh. The server never regenerates itself.
  */
 export function runGet(db: DB, input: GetExplanationArgs): GetResult {
-  const loc = { repo: input.repo, file_path: input.file, symbol: input.symbol };
-  const stored = getByLocator(db, loc);
-  if (!stored) return { status: "not_stored", symbol: input.symbol };
+  const normalized = normalizeLocator(input);
+  if (!normalized.ok) {
+    return {
+      status: "outside_repo",
+      symbol: input.symbol,
+      message: normalized.message,
+    };
+  }
+  const { locator: loc, absPath } = normalized;
 
-  const absPath = resolve(input.repo, input.file);
+  const stored = getByLocator(db, loc);
+  if (!stored) return { status: "not_stored", symbol: loc.symbol };
+
   if (!existsSync(absPath)) {
     return {
       status: "relocate_failed",
-      symbol: input.symbol,
+      symbol: loc.symbol,
       reason: "not_found",
       prose: stored.prose,
     };
   }
 
-  const located = locateInFile(absPath, input.symbol);
+  const located = locateInFile(absPath, loc.symbol);
   if (!located.ok) {
     return {
       status: "relocate_failed",
-      symbol: input.symbol,
+      symbol: loc.symbol,
       reason: located.reason,
       prose: stored.prose,
     };
@@ -75,13 +86,13 @@ export function runGet(db: DB, input: GetExplanationArgs): GetResult {
     // Structurally identical: any prior stale flag was a false alarm (cosmetic
     // change, or a commit that was later reverted). Self-heal it.
     if (stored.is_stale) clearStale(db, loc);
-    return { status: "fresh", symbol: input.symbol, prose: stored.prose };
+    return { status: "fresh", symbol: loc.symbol, prose: stored.prose };
   }
 
   if (!stored.is_stale) markStale(db, loc);
   return {
     status: "stale",
-    symbol: input.symbol,
+    symbol: loc.symbol,
     oldProse: stored.prose,
     oldSnapshot: stored.code_snapshot,
     currentCode: located.symbol.snapshot,
@@ -119,6 +130,8 @@ export function renderGetResult(r: GetResult): {
           r.currentCode,
         ].join("\n"),
       };
+    case "outside_repo":
+      return { isError: true, text: r.message };
     case "relocate_failed":
       return {
         isError: false,

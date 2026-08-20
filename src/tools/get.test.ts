@@ -1,18 +1,19 @@
 import { describe, it, expect, beforeEach, afterAll } from "vitest";
-import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, writeFileSync, rmSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openDb, type DB } from "../store/db.js";
 import { getByLocator, markStale } from "../store/queries.js";
 import { runSave } from "./save.js";
-import { runGet, renderGetResult } from "./get.js";
+import { runGet, renderGetResult, type GetExplanationArgs } from "./get.js";
 
 const FRESH = `export function resolvePrice(base: number): number {
   return base * 2;
 }
 `;
 
-const repo = mkdtempSync(join(tmpdir(), "wise-get-"));
+// Canonical form — see the note in save.test.ts.
+const repo = realpathSync.native(mkdtempSync(join(tmpdir(), "wise-get-")));
 const file = "pricing.ts";
 const abs = join(repo, file);
 
@@ -109,6 +110,66 @@ describe("runGet", () => {
     if (r.status !== "relocate_failed") return;
     expect(r.reason).toBe("not_found");
     expect(r.prose).toBe("Doubles the base price.");
+  });
+});
+
+// The bug this suite guards: a locator is both the path used to read the file
+// and the key of the stored row. Every spelling below reaches the same file, so
+// every one of them must reach the same row — otherwise a save appears to
+// vanish and the agent re-explains from scratch.
+describe("runGet — locator spellings", () => {
+  const spellings = (): Array<[string, GetExplanationArgs]> => [
+    ["repo-relative", { repo, file, symbol: "resolvePrice" }],
+    ["dot-slash", { repo, file: `./${file}`, symbol: "resolvePrice" }],
+    [
+      "trailing slash on repo",
+      { repo: `${repo}/`, file, symbol: "resolvePrice" },
+    ],
+    ["absolute file", { repo, file: abs, symbol: "resolvePrice" }],
+    [
+      "interior traversal",
+      { repo, file: `./sub/../${file}`, symbol: "resolvePrice" },
+    ],
+  ];
+
+  it("finds one saved explanation through every spelling", () => {
+    save("Doubles the base price.");
+    for (const [name, args] of spellings()) {
+      expect(runGet(db, args), name).toMatchObject({
+        status: "fresh",
+        prose: "Doubles the base price.",
+      });
+    }
+  });
+
+  it("saving through different spellings writes one row, not several", () => {
+    for (const [, args] of spellings()) {
+      expect(runSave(db, { ...args, prose: "p" }).ok).toBe(true);
+    }
+    expect(db.prepare("SELECT COUNT(*) c FROM explanations").get()).toEqual({
+      c: 1,
+    });
+  });
+
+  it("refuses a file outside the repo instead of storing an unreachable row", () => {
+    const outside = runSave(db, {
+      repo,
+      file: "../escaped.ts",
+      symbol: "resolvePrice",
+      prose: "p",
+    });
+    expect(outside).toMatchObject({ ok: false, error: "outside_repo" });
+    expect(db.prepare("SELECT COUNT(*) c FROM explanations").get()).toEqual({
+      c: 0,
+    });
+
+    const read = runGet(db, {
+      repo,
+      file: "../escaped.ts",
+      symbol: "resolvePrice",
+    });
+    expect(read.status).toBe("outside_repo");
+    expect(renderGetResult(read).isError).toBe(true);
   });
 });
 
