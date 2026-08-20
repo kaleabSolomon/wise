@@ -10,39 +10,43 @@
 import { fileURLToPath } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { serve } from "@hono/node-server";
-import { openDb, type DB } from "./store/db.js";
+import { openDb } from "./store/db.js";
 import { saveExplanationShape, runSave } from "./tools/save.js";
 import { getExplanationShape, runGet, renderGetResult } from "./tools/get.js";
 import { installHookShape, runInstallHook } from "./tools/installHook.js";
 import { flagStaleForHead } from "./hook/flag.js";
 import { canonicalize } from "./store/locator.js";
-import { createViewerApp } from "./viewer/server.js";
-
-const VIEWER_PORT = Number(process.env["WISE_VIEWER_PORT"] ?? 4319);
+import { startViewer } from "./viewer/boot.js";
 
 /**
- * Start the localhost viewer. Bind failures (e.g. another wise process already
- * holds the port) are logged, never fatal — the MCP server must keep working.
- * All logging goes to stderr so it can't corrupt the stdio JSON-RPC stream.
+ * Advertised to the client on connect. Tool descriptions say what each verb
+ * does; this says when to reach for them — the part a client can't infer from
+ * three schemas, and the reason a remembered explanation gets re-derived from
+ * scratch instead of retrieved.
  */
-function startViewer(db: DB): void {
-  const server = serve(
-    {
-      fetch: createViewerApp(db).fetch,
-      port: VIEWER_PORT,
-      hostname: "127.0.0.1",
-    },
-    (info) => console.error(`wise viewer: http://127.0.0.1:${info.port}`),
-  );
-  server.on("error", (err: unknown) =>
-    console.error(`wise viewer: not started (${String(err)})`),
-  );
-}
+const SERVER_INSTRUCTIONS = [
+  "Wise is a memory for plain-language explanations of code, kept outside the user's repos.",
+  "",
+  "Before explaining a symbol the user asks about, call get_explanation — it may already be remembered, and re-deriving an explanation the user already has wastes their time.",
+  "",
+  "get_explanation returns one of three things:",
+  "  - the stored prose, when the code is unchanged — use it as-is;",
+  "  - STALE refresh materials (previous explanation, code as it was, code as it is) — write the updated explanation from those, note what changed, and call save_explanation with it;",
+  "  - nothing stored — explain the symbol, then save it.",
+  "",
+  "After writing an explanation worth keeping, call save_explanation. It is an upsert: re-saving the same symbol replaces the current explanation and keeps the previous one in history, so saving again is always safe.",
+  "",
+  "Locators are (repo, file, symbol): repo is the absolute repository root; file may be repo-relative or absolute (both are stored canonically, so either is fine); symbol is a top-level name, or Class.member for a method, property, or accessor.",
+  "",
+  "Wise never writes to the user's repository. The one exception is install_hook, which is opt-in and touches only .git/hooks/.",
+].join("\n");
 
 async function runServer(): Promise<void> {
   const db = openDb();
-  const server = new McpServer({ name: "wise", version: "0.1.0" });
+  const server = new McpServer(
+    { name: "wise", version: "0.1.0" },
+    { instructions: SERVER_INSTRUCTIONS },
+  );
 
   server.registerTool(
     "save_explanation",
@@ -51,7 +55,8 @@ async function runServer(): Promise<void> {
       description:
         "Store a human-language explanation for a code symbol. Wise snapshots " +
         "the symbol's current code and a structural hash so it can tell later " +
-        "when the explanation has gone stale.",
+        "when the explanation has gone stale. Upsert: re-saving a symbol " +
+        "replaces its explanation and keeps the previous one in history.",
       inputSchema: saveExplanationShape,
     },
     (args) => {
@@ -68,7 +73,8 @@ async function runServer(): Promise<void> {
     {
       title: "Get explanation",
       description:
-        "Retrieve the stored explanation for a code symbol. Wise re-reads the " +
+        "Retrieve the stored explanation for a code symbol. Call this before " +
+        "explaining a symbol — it may already be remembered. Wise re-reads the " +
         "symbol and compares a structural hash: if fresh, it returns the prose; " +
         "if the code changed, it returns the old explanation, the old code, and " +
         "the current code so you can refresh it and call save_explanation back.",

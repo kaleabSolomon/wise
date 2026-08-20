@@ -23,3 +23,5 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
+      # Not covered by typecheck: the esbuild viewer bundle and its asset copy.
+      - run: pnpm build
