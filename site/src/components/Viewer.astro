@@ -1,0 +1,401 @@
+---
+/**
+ * The local viewer, rebuilt as a static mockup for the hero.
+ *
+ * Structure and styling follow src/viewer/public/styles.css so this reads as
+ * the real thing rather than an illustration of it. Everything animated is
+ * CSS: a ten-second loop in which a one-line edit lands in the code, the
+ * entry is flagged stale, and the "what changed" headline appears. Under
+ * prefers-reduced-motion the loop is replaced by its final frame.
+ */
+---
+
+<div class="viewer rise" style="--i: 5" aria-label="The Wise viewer, showing an explanation flagged stale after a code change">
+  <div class="chrome">
+    <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+    <span class="url">127.0.0.1:4319</span>
+  </div>
+
+  <div class="app">
+    <aside>
+      <div class="nav-head"><span class="back">‹ Projects</span></div>
+      <div class="nav-head proj">identicon</div>
+
+      <div class="item active">
+        <div class="main">
+          <div class="sym">processOrder <span class="badge stale">stale</span></div>
+          <div class="path">src/orders.ts</div>
+        </div>
+      </div>
+      <div class="item">
+        <div class="main">
+          <div class="sym">generateFaceSVG</div>
+          <div class="path">src/index.ts</div>
+        </div>
+      </div>
+      <div class="item">
+        <div class="main">
+          <div class="sym">BitReader</div>
+          <div class="path">src/util/bit-reader.ts</div>
+        </div>
+      </div>
+    </aside>
+
+    <main>
+      <div class="detail-head">
+        <h2>processOrder <span class="badge stale">stale</span></h2>
+      </div>
+      <div class="loc">~/Documents/identicon › src/orders.ts <span class="chip">anchored</span></div>
+
+      <div class="cols">
+        <div class="left">
+          <div class="expl-diff">
+            <h3>What changed since you last read this</h3>
+            <div class="body">Sums the order, then applies <del>a hardcoded 20% tax</del><ins>the VAT rate from <code>RATES</code></ins>.</div>
+          </div>
+          <div class="prose">
+            <p>Computes a receipt for an order. Drops any line with a zero quantity, sums what's left into a subtotal, and applies tax on top.</p>
+            <p>The rate comes from <code>RATES.vat</code>, so a change in tax policy is a config change, not a code change.</p>
+          </div>
+        </div>
+
+        <div class="right">
+          <h3 class="code-h">What changed in the code</h3>
+          <div class="diff" role="img" aria-label="Side-by-side code diff with one changed line">
+            <div class="row"><span class="ln">1</span><span class="code"><b>export function</b> processOrder(order) &#123;</span><span class="ln">1</span><span class="code"><b>export function</b> processOrder(order) &#123;</span></div>
+            <div class="row"><span class="ln">2</span><span class="code">  <b>const</b> items = order.items.filter(nonEmpty);</span><span class="ln">2</span><span class="code">  <b>const</b> items = order.items.filter(nonEmpty);</span></div>
+            <div class="row fold"><span class="ln"></span><span class="code">⋯ 25 unchanged lines</span><span class="ln"></span><span class="code">⋯ 25 unchanged lines</span></div>
+            <div class="row"><span class="ln">28</span><span class="code">  <b>const</b> sub = sum(items);</span><span class="ln">28</span><span class="code">  <b>const</b> sub = sum(items);</span></div>
+            <div class="row change">
+              <span class="ln old">29</span><span class="code old">  <b>const</b> tax = sub * <i>0.2</i>;</span>
+              <span class="ln new">29</span><span class="code new"><span class="before">  <b>const</b> tax = sub * <i>0.2</i>;</span><span class="after">  <b>const</b> tax = sub * RATES.vat;</span></span>
+            </div>
+            <div class="row"><span class="ln">30</span><span class="code">  <b>return</b> &#123; sub, tax, total: sub + tax &#125;;</span><span class="ln">30</span><span class="code">  <b>return</b> &#123; sub, tax, total: sub + tax &#125;;</span></div>
+            <div class="row"><span class="ln">31</span><span class="code">&#125;</span><span class="ln">31</span><span class="code">&#125;</span></div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<style>
+  /* ---- The window ------------------------------------------------------ */
+  .viewer {
+    --stale-bg: #fef3c7;
+    --stale-fg: #92400e;
+    --ins: rgba(46, 160, 67, 0.22);
+    --del: rgba(248, 81, 73, 0.22);
+    --loop: 10s;
+
+    position: relative;
+    margin-top: 44px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--bg);
+    overflow: hidden;
+    box-shadow:
+      0 1px 0 var(--edge-line) inset,
+      0 30px 60px -30px rgba(0, 0, 0, 0.25),
+      0 2px 6px rgba(0, 0, 0, 0.04);
+    font-size: 12.5px;
+    line-height: 1.5;
+  }
+  @media (prefers-color-scheme: dark) {
+    .viewer {
+      --stale-bg: #3b2f14;
+      --stale-fg: #f5d99b;
+      box-shadow:
+        0 1px 0 var(--edge-line) inset,
+        0 30px 60px -30px rgba(0, 0, 0, 0.7),
+        0 2px 6px rgba(0, 0, 0, 0.3);
+    }
+  }
+
+  .chrome {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 34px;
+    padding: 0 14px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  .dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--border);
+  }
+  .url {
+    margin-left: 12px;
+    font: 11.5px var(--mono);
+    color: var(--muted);
+  }
+
+  .app {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    min-height: 380px;
+  }
+
+  /* ---- Sidebar (mirrors aside/.nav-head/.item in the viewer) ------------ */
+  aside {
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+  }
+  .nav-head {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 14px 14px 6px;
+  }
+  .nav-head.proj {
+    padding-top: 0;
+  }
+  .back {
+    color: var(--accent);
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 12px;
+  }
+  .item {
+    padding: 9px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .item.active {
+    background: var(--bg);
+    box-shadow: inset 3px 0 0 var(--accent);
+  }
+  .sym {
+    font-weight: 600;
+  }
+  .path {
+    color: var(--muted);
+    font-size: 11px;
+  }
+
+  /* ---- Detail ----------------------------------------------------------- */
+  main {
+    padding: 20px 24px;
+    min-width: 0;
+  }
+  h2 {
+    margin: 0 0 2px;
+    font-size: 17px;
+    letter-spacing: -0.01em;
+  }
+  .loc {
+    color: var(--muted);
+    font-size: 11.5px;
+    margin-bottom: 16px;
+  }
+  .chip {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 0 7px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    font-size: 10.5px;
+    vertical-align: middle;
+  }
+  .badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    border-radius: 999px;
+    padding: 0 7px;
+    background: var(--stale-bg);
+    color: var(--stale-fg);
+    vertical-align: 1px;
+  }
+
+  .cols {
+    display: grid;
+    grid-template-columns: minmax(0, 4fr) minmax(0, 7fr);
+    gap: 22px;
+  }
+
+  .expl-diff {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 11px 13px;
+    margin-bottom: 16px;
+  }
+  .expl-diff h3,
+  .code-h {
+    margin: 0 0 6px;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--muted);
+  }
+  .expl-diff .body ins {
+    background: var(--ins);
+    text-decoration: none;
+  }
+  .expl-diff .body del {
+    background: var(--del);
+  }
+  .prose {
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+    color: var(--fg);
+  }
+  .prose p {
+    margin: 0 0 8px;
+  }
+  code {
+    background: var(--code-bg);
+    border-radius: 4px;
+    padding: 0 4px;
+    font-size: 90%;
+  }
+
+  /* ---- Side-by-side diff (the shape of diff2html's output) ------------- */
+  .diff {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    font: 10.5px/1.75 var(--mono);
+    background: var(--bg);
+  }
+  .row {
+    display: grid;
+    grid-template-columns: 26px 1fr 26px 1fr;
+  }
+  .row + .row {
+    border-top: 1px solid var(--border);
+  }
+  .ln {
+    color: var(--muted);
+    text-align: right;
+    padding-right: 6px;
+    background: var(--panel);
+    user-select: none;
+  }
+  .code {
+    padding: 0 8px;
+    white-space: pre;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--fg);
+  }
+  .code b {
+    color: #d73a49;
+    font-weight: 500;
+  }
+  .code i {
+    font-style: normal;
+    color: #005cc5;
+  }
+  @media (prefers-color-scheme: dark) {
+    .code b {
+      color: #ff7b72;
+    }
+    .code i {
+      color: #79c0ff;
+    }
+  }
+  .row.fold .code {
+    color: var(--muted);
+    background: var(--panel);
+  }
+  .row.fold .ln {
+    background: var(--panel);
+  }
+  .code.new {
+    position: relative;
+  }
+  .code.new .after {
+    position: absolute;
+    inset: 0 8px;
+    opacity: 0;
+    /* Absolutely positioned, so it needs its own overflow handling. */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: pre;
+  }
+
+  /* ---- The loop --------------------------------------------------------- */
+  /*
+   * One timeline, four actors, sharing --loop so they stay in step:
+   *   0–25%   fresh: no badge, no headline, both sides show the old line
+   *   25%     the edit lands: the changed row colours, the new text appears
+   *   35%     stale badges come in
+   *   45%     the "what changed" headline rises in
+   *   92–100% everything settles back to fresh
+   */
+  .badge.stale {
+    animation: badge var(--loop) ease-in-out infinite;
+  }
+  @keyframes badge {
+    0%, 35% { opacity: 0; transform: scale(0.92); }
+    39%, 92% { opacity: 1; transform: none; }
+    100% { opacity: 0; transform: scale(0.92); }
+  }
+
+  .expl-diff {
+    animation: headline var(--loop) ease-in-out infinite;
+  }
+  @keyframes headline {
+    0%, 45% { opacity: 0; transform: translateY(6px); max-height: 0; margin-bottom: 0; padding-top: 0; padding-bottom: 0; border-width: 0; }
+    50%, 92% { opacity: 1; transform: none; max-height: 120px; margin-bottom: 16px; padding-top: 11px; padding-bottom: 11px; border-width: 1px; }
+    100% { opacity: 0; transform: translateY(6px); max-height: 0; margin-bottom: 0; padding-top: 0; padding-bottom: 0; border-width: 0; }
+  }
+
+  .change .old {
+    animation: del var(--loop) ease-in-out infinite;
+  }
+  .change .new {
+    animation: ins var(--loop) ease-in-out infinite;
+  }
+  @keyframes del {
+    0%, 25% { background: transparent; }
+    28%, 92% { background: var(--del); }
+    100% { background: transparent; }
+  }
+  @keyframes ins {
+    0%, 25% { background: transparent; }
+    28%, 92% { background: var(--ins); }
+    100% { background: transparent; }
+  }
+  .code.new .after {
+    animation: swap-in var(--loop) ease-in-out infinite;
+  }
+  .code.new .before {
+    animation: swap-out var(--loop) ease-in-out infinite;
+  }
+  @keyframes swap-in {
+    0%, 25% { opacity: 0; }
+    29%, 92% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+  @keyframes swap-out {
+    0%, 25% { opacity: 1; }
+    29%, 92% { opacity: 0; }
+    100% { opacity: 1; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .badge.stale, .expl-diff, .change .old, .change .new, .code.new .after, .code.new .before {
+      animation: none;
+    }
+    .expl-diff { opacity: 1; transform: none; max-height: none; }
+    .change .old { background: var(--del); }
+    .change .new { background: var(--ins); }
+    .code.new .after { opacity: 1; }
+    .code.new .before { opacity: 0; }
+  }
+
+  /* ---- Small screens: stack, and let the diff scroll --------------------- */
+  @media (max-width: 860px) {
+    .app { grid-template-columns: 1fr; }
+    aside { display: none; }
+    .cols { grid-template-columns: 1fr; }
+    .diff { overflow-x: auto; }
+    .row { min-width: 620px; }
+  }
+</style>
