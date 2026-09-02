@@ -106,6 +106,16 @@ describe("migration v1 -> v2 — locator canonicalization", () => {
     db.close();
   }
 
+  /**
+   * Only the migration's own line. On Linux `tmpdir()` is `/tmp`, so opening
+   * a test store also fires the ephemeral-path warning — a different message,
+   * and one this suite must not mistake for (or count against) the migration.
+   */
+  const migrationLogs = (spy: { mock: { calls: unknown[][] } }): string[] =>
+    spy.mock.calls
+      .map((call) => String(call[0]))
+      .filter((line) => line.startsWith("wise: normalized"));
+
   it("rewrites every spelling to one canonical locator, merging duplicates", () => {
     seedV1Store();
     const warn = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -123,8 +133,8 @@ describe("migration v1 -> v2 — locator canonicalization", () => {
       `${repo}|src/c.ts|c`,
       `${repo}|src/d.ts|d`,
     ]);
-    expect(warn).toHaveBeenCalled();
-    expect(String(warn.mock.calls[0]?.[0])).toContain("merged 1 duplicate");
+    expect(migrationLogs(warn)).toHaveLength(1);
+    expect(migrationLogs(warn)[0]).toContain("merged 1 duplicate");
 
     // The more recent generation survives as current...
     const d = rows.find((r) => r.symbol === "d");
@@ -157,7 +167,7 @@ describe("migration v1 -> v2 — locator canonicalization", () => {
     const warn = vi.spyOn(console, "error").mockImplementation(() => {});
     const db = openDb(dbPath);
     expect(listExplanations(db)).toHaveLength(4);
-    expect(warn).not.toHaveBeenCalled();
+    expect(migrationLogs(warn)).toHaveLength(0);
     db.close();
   });
 });
