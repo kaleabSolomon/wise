@@ -1,9 +1,15 @@
 import { z } from "zod";
 import type { DB } from "../store/db.js";
-import { saveExplanation } from "../store/queries.js";
+import {
+  anchorsEnabled,
+  saveExplanation,
+  setAnchor,
+} from "../store/queries.js";
 import { normalizeLocator } from "../store/locator.js";
 import { locateInFile } from "../code/locate.js";
 import { structuralHash } from "../code/hash.js";
+import { anchorToken, mintAnchorId } from "../code/anchor.js";
+import { resolveRow } from "./relocate.js";
 
 export const saveExplanationShape = {
   repo: z.string().min(1).describe("Absolute path to the repository root"),
@@ -30,7 +36,13 @@ export type SaveExplanationArgs = {
 };
 
 export type SaveResult =
-  | { ok: true; id: number; message: string }
+  | {
+      ok: true;
+      id: number;
+      message: string;
+      /** Set only when this save minted a new anchor for the agent to place. */
+      anchor?: { id: string; token: string };
+    }
   | {
       ok: false;
       error: "not_found" | "ambiguous" | "outside_repo";
@@ -64,6 +76,11 @@ export function runSave(db: DB, input: SaveExplanationArgs): SaveResult {
     };
   }
 
+  // Resolving first lets an anchored row that has since been renamed or moved
+  // be updated in place, instead of the save landing as a second row for code
+  // that already has an explanation.
+  const existing = resolveRow(db, locator, absPath);
+
   const row = saveExplanation(db, {
     ...locator,
     prose: input.prose,
@@ -71,9 +88,30 @@ export function runSave(db: DB, input: SaveExplanationArgs): SaveResult {
     ast_hash: structuralHash(located.symbol.node),
   });
 
+  const saved = `Saved explanation for ${locator.symbol} (${located.symbol.kind}).`;
+
+  // Mint at most once per explanation: `anchor_id` is never cleared, so a user
+  // who later deletes the comment is not asked to put it back.
+  const wantsAnchor =
+    (existing?.anchor_id ?? null) === null && anchorsEnabled(db, locator.repo);
+  if (!wantsAnchor) return { ok: true, id: row.id, message: saved };
+
+  const anchorId = mintAnchorId();
+  setAnchor(db, row.id, anchorId);
+  const token = anchorToken(anchorId);
+
   return {
     ok: true,
     id: row.id,
-    message: `Saved explanation for ${locator.symbol} (${located.symbol.kind}).`,
+    anchor: { id: anchorId, token },
+    message: [
+      saved,
+      ``,
+      `This repo has anchors enabled. Add a comment containing "${token}" on the line directly above ${locator.symbol} in ${locator.file_path}, using that file's comment syntax — for example:`,
+      ``,
+      `    // ${token}`,
+      ``,
+      `The anchor lets wise follow this symbol if it is renamed or moved. It is optional: delete the comment whenever you like and wise falls back to matching by name and path.`,
+    ].join("\n"),
   };
 }

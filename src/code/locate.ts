@@ -26,6 +26,81 @@ export function locateInFile(
   return locateSymbol(project.addSourceFileAtPath(filePath), symbolName);
 }
 
+/**
+ * Locate the first declaration at or below `line` — the symbol an in-code
+ * anchor is marking, whatever it is now called.
+ *
+ * Resolution deliberately goes through the by-name path once the name is
+ * known, so an anchored lookup collapses overloads and reports ambiguity
+ * exactly the way a plain one does.
+ */
+export function locateAfterLine(filePath: string, line: number): LocateResult {
+  const project = new Project({
+    skipAddingFilesFromTsConfig: true,
+    compilerOptions: { allowJs: true },
+  });
+  const sf = project.addSourceFileAtPath(filePath);
+
+  const name = firstDeclarationNameAfter(sf, line);
+  if (name === undefined) return { ok: false, reason: "not_found" };
+  return locateSymbol(sf, name);
+}
+
+/** The declared name of `node`, in the form a locator stores it. */
+function declaredName(node: Node): string | undefined {
+  if (
+    Node.isFunctionDeclaration(node) ||
+    Node.isClassDeclaration(node) ||
+    Node.isInterfaceDeclaration(node) ||
+    Node.isTypeAliasDeclaration(node) ||
+    Node.isEnumDeclaration(node) ||
+    Node.isModuleDeclaration(node)
+  ) {
+    return node.getName();
+  }
+
+  if (Node.isVariableStatement(node)) {
+    return node.getDeclarations()[0]?.getName();
+  }
+
+  if (
+    Node.isMethodDeclaration(node) ||
+    Node.isPropertyDeclaration(node) ||
+    Node.isGetAccessorDeclaration(node) ||
+    Node.isSetAccessorDeclaration(node)
+  ) {
+    const member = node.getName();
+    const cls = node.getParent();
+    const owner = Node.isClassDeclaration(cls) ? cls.getName() : undefined;
+    // Members are addressed as "Class.member"; an anonymous owner leaves us
+    // nothing a locator could round-trip, so decline rather than guess.
+    return owner !== undefined && member !== undefined
+      ? `${owner}.${member}`
+      : undefined;
+  }
+
+  return undefined;
+}
+
+function firstDeclarationNameAfter(
+  sf: SourceFile,
+  line: number,
+): string | undefined {
+  let best: { line: number; name: string } | undefined;
+
+  sf.forEachDescendant((node) => {
+    const name = declaredName(node);
+    if (name === undefined) return;
+    // A declaration's start excludes its leading comments, so the anchor's own
+    // line is never mistaken for the declaration it marks.
+    const start = node.getStartLineNumber();
+    if (start < line) return;
+    if (best === undefined || start < best.line) best = { line: start, name };
+  });
+
+  return best?.name;
+}
+
 export function locateInSource(
   code: string,
   symbolName: string,

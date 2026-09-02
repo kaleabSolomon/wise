@@ -14,6 +14,12 @@ import { openDb } from "./store/db.js";
 import { saveExplanationShape, runSave } from "./tools/save.js";
 import { getExplanationShape, runGet, renderGetResult } from "./tools/get.js";
 import { installHookShape, runInstallHook } from "./tools/installHook.js";
+import {
+  setAnchorsShape,
+  runSetAnchors,
+  anchorsState,
+} from "./tools/anchors.js";
+import { runUnanchor } from "./tools/unanchor.js";
 import { flagStaleForHead } from "./hook/flag.js";
 import { canonicalize } from "./store/locator.js";
 import { startViewer } from "./viewer/boot.js";
@@ -38,7 +44,9 @@ const SERVER_INSTRUCTIONS = [
   "",
   "Locators are (repo, file, symbol): repo is the absolute repository root; file may be repo-relative or absolute (both are stored canonically, so either is fine); symbol is a top-level name, or Class.member for a method, property, or accessor.",
   "",
-  "Wise never writes to the user's repository. The one exception is install_hook, which is opt-in and touches only .git/hooks/.",
+  "Wise never writes to the user's repository. install_hook is the one exception, and it is opt-in and touches only .git/hooks/.",
+  "",
+  'In-code anchors (opt-in per repo, off by default): when a repo has them enabled, save_explanation returns a short marker such as "wise:7f3a9c2e" together with the symbol and file it belongs to. Add a comment containing that marker on the line directly above the declaration, in whatever comment syntax the file uses. Wise cannot place it itself — this is the one edit it asks you to make, and the marker is what lets an explanation survive the symbol being renamed or the file being moved. It is never required: skip it, or delete it later, and wise falls back to matching by name and path.',
 ].join("\n");
 
 async function runServer(): Promise<void> {
@@ -110,6 +118,24 @@ async function runServer(): Promise<void> {
     },
   );
 
+  server.registerTool(
+    "set_repo_anchors",
+    {
+      title: "Enable or disable in-code anchors",
+      description:
+        "Opt one repository in to in-code anchors. When on, each newly saved " +
+        "explanation is given a short marker comment for you to add above the " +
+        "symbol, so the explanation survives renames and file moves. Wise " +
+        "never edits the repo itself; it tells you the marker to place. Off " +
+        "by default, and reversible at any time.",
+      inputSchema: setAnchorsShape,
+    },
+    (args) => {
+      const r = runSetAnchors(db, args);
+      return { content: [{ type: "text", text: r.message }] };
+    },
+  );
+
   startViewer(db);
 
   await server.connect(new StdioServerTransport());
@@ -135,9 +161,53 @@ function runHookFlag(repoArg: string | undefined): void {
   }
 }
 
+/** `wise anchors on|off|status <repo>` — the CLI face of `set_repo_anchors`. */
+function runAnchorsCli(
+  mode: string | undefined,
+  repoArg: string | undefined,
+): void {
+  if (!repoArg || !mode || !["on", "off", "status"].includes(mode)) {
+    console.error("usage: wise anchors on|off|status <repo>");
+    process.exitCode = 2;
+    return;
+  }
+  const db = openDb();
+  if (mode === "status") {
+    const on = anchorsState(db, repoArg);
+    console.error(
+      `wise: in-code anchors are ${on ? "ON" : "OFF"} for ${canonicalize(repoArg)}`,
+    );
+    return;
+  }
+  console.error(
+    runSetAnchors(db, { repo: repoArg, enabled: mode === "on" }).message,
+  );
+}
+
+/**
+ * `wise unanchor <repo> [--apply]` — strip wise's markers back out.
+ *
+ * Deliberately CLI-only and dry by default: this is the one command that edits
+ * the user's files, so it shows what it would do until told otherwise. It is
+ * not an MCP tool — removing traces should not need an agent.
+ */
+function runUnanchorCli(repoArg: string | undefined, flags: string[]): void {
+  if (!repoArg) {
+    console.error("usage: wise unanchor <repo> [--apply]");
+    process.exitCode = 2;
+    return;
+  }
+  const apply = flags.includes("--apply");
+  console.error(runUnanchor(openDb(), repoArg, { apply }).message);
+}
+
 const argv = process.argv.slice(2);
 if (argv[0] === "hook-flag") {
   runHookFlag(argv[1]);
+} else if (argv[0] === "anchors") {
+  runAnchorsCli(argv[1], argv[2]);
+} else if (argv[0] === "unanchor") {
+  runUnanchorCli(argv[1], argv.slice(2));
 } else {
   runServer().catch((err: unknown) => {
     console.error(err);

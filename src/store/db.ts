@@ -20,7 +20,7 @@ import { normalizeLocator } from "./locator.js";
 export type DB = Database.Database;
 
 /** Current schema version. Bump when adding a migration below. */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 /**
  * The directory that holds the store. Defaults to `~/.wise`; overridable with
@@ -252,6 +252,36 @@ const MIGRATIONS: ReadonlyArray<(db: DB) => void> = [
         `wise: normalized ${rewritten} explanation locator(s)${mergeNote}.`,
       );
     }
+  },
+
+  // v2 -> v3: opt-in in-code anchors.
+  //
+  // An anchor is a marker the user's code carries (`// wise:7f3a9c2e`), so an
+  // explanation survives the symbol being renamed or the file being moved —
+  // the cases a name-and-path locator cannot follow. Both columns below are
+  // inert for anyone who never opts in: `anchor_id` stays NULL and no row
+  // exists in `repo_settings`, which is byte-for-byte the v2 behaviour.
+  (db) => {
+    db.exec(`ALTER TABLE explanations ADD COLUMN anchor_id TEXT;`);
+    // Partial index: anchors are unique when present, and NULL is the norm.
+    db.exec(
+      `CREATE UNIQUE INDEX idx_explanations_anchor
+         ON explanations (anchor_id) WHERE anchor_id IS NOT NULL;`,
+    );
+
+    // Per-repo settings. These live here rather than in the repo itself: a
+    // config file in the user's project would be exactly the kind of trace
+    // wise exists to avoid — and a worse one than the anchors, since it would
+    // land even in repos with no explanations at all.
+    db.exec(`
+      CREATE TABLE repo_settings (
+        repo            TEXT PRIMARY KEY,  -- canonical repo root (see locator.ts)
+        anchors_enabled INTEGER NOT NULL DEFAULT 0
+                          CHECK (anchors_enabled IN (0, 1)),
+        created_at      INTEGER NOT NULL DEFAULT (unixepoch()),
+        updated_at      INTEGER NOT NULL DEFAULT (unixepoch())
+      );
+    `);
   },
 ];
 

@@ -2,7 +2,7 @@ import { describe, it, expect, afterAll } from "vitest";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { locateInSource, locateInFile } from "./locate.js";
+import { locateInSource, locateInFile, locateAfterLine } from "./locate.js";
 
 const SRC = `import { x } from "y";
 
@@ -107,5 +107,96 @@ describe("locateInFile", () => {
     const r = locateInFile(file, "resolvePrice");
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.symbol.kind).toBe("FunctionDeclaration");
+  });
+});
+
+describe("locateAfterLine", () => {
+  // Mirrors how an anchor sits: a marker comment, then the declaration.
+  const dir = mkdtempSync(join(tmpdir(), "wise-after-"));
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+
+  function at(source: string, line: number) {
+    const file = join(dir, `after-${Math.random().toString(36).slice(2)}.ts`);
+    writeFileSync(file, source);
+    return locateAfterLine(file, line);
+  }
+
+  it("finds the function directly below the given line", () => {
+    const r = at("// wise:7f3a9c2e\nexport function f() {}\n", 1);
+    expect(r).toMatchObject({ ok: true, symbol: { name: "f" } });
+  });
+
+  it("names a class member as Class.member", () => {
+    const r = at(
+      [
+        "class Cart {",
+        "  // wise:7f3a9c2e",
+        "  total() {",
+        "    return 0;",
+        "  }",
+        "}",
+      ].join("\n"),
+      2,
+    );
+    expect(r).toMatchObject({ ok: true, symbol: { name: "Cart.total" } });
+  });
+
+  it("finds a const declaration", () => {
+    const r = at("// m\nexport const rate = 0.2;\n", 1);
+    expect(r).toMatchObject({ ok: true, symbol: { name: "rate" } });
+  });
+
+  it("finds a class, interface, type alias and enum", () => {
+    expect(at("// m\nclass C {}\n", 1)).toMatchObject({
+      ok: true,
+      symbol: { name: "C" },
+    });
+    expect(at("// m\ninterface I { a: number }\n", 1)).toMatchObject({
+      ok: true,
+      symbol: { name: "I" },
+    });
+    expect(at("// m\ntype T = number;\n", 1)).toMatchObject({
+      ok: true,
+      symbol: { name: "T" },
+    });
+    expect(at("// m\nenum E { A }\n", 1)).toMatchObject({
+      ok: true,
+      symbol: { name: "E" },
+    });
+  });
+
+  it("skips a declaration that sits above the line", () => {
+    const source = [
+      "function above() {}",
+      "// wise:7f3a9c2e",
+      "function below() {}",
+    ].join("\n");
+    expect(at(source, 2)).toMatchObject({
+      ok: true,
+      symbol: { name: "below" },
+    });
+  });
+
+  it("reports not_found when nothing is declared below the line", () => {
+    expect(at("function f() {}\n// trailing marker\n", 2)).toMatchObject({
+      ok: false,
+      reason: "not_found",
+    });
+  });
+
+  it("collapses overloads to the implementation, like a by-name lookup", () => {
+    const source = [
+      "// wise:7f3a9c2e",
+      "export function f(a: number): number;",
+      "export function f(a: string): string;",
+      "export function f(a: unknown): unknown {",
+      "  return a;",
+      "}",
+    ].join("\n");
+    const r = at(source, 1);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.symbol.name).toBe("f");
+    expect(r.symbol.snapshot).toContain("return a;");
   });
 });

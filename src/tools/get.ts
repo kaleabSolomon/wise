@@ -1,10 +1,9 @@
-import { existsSync } from "node:fs";
 import { z } from "zod";
 import type { DB } from "../store/db.js";
-import { getByLocator, markStale, clearStale } from "../store/queries.js";
+import { markStale, clearStale } from "../store/queries.js";
 import { normalizeLocator } from "../store/locator.js";
-import { locateInFile } from "../code/locate.js";
 import { structuralHash } from "../code/hash.js";
+import { locateForRow, resolveRow } from "./relocate.js";
 
 export const getExplanationShape = {
   repo: z.string().min(1).describe("Absolute path to the repository root"),
@@ -60,42 +59,38 @@ export function runGet(db: DB, input: GetExplanationArgs): GetResult {
   }
   const { locator: loc, absPath } = normalized;
 
-  const stored = getByLocator(db, loc);
+  // An anchored row can be found even when the caller's locator is out of date
+  // — the code was renamed or moved since it was explained.
+  const stored = resolveRow(db, loc, absPath);
   if (!stored) return { status: "not_stored", symbol: loc.symbol };
 
-  if (!existsSync(absPath)) {
+  // Likewise the code itself: if the stored name or path no longer resolves,
+  // the anchor follows it and the row's locator is rewritten to match.
+  const found = locateForRow(db, stored);
+  if (!found.ok) {
     return {
       status: "relocate_failed",
       symbol: loc.symbol,
-      reason: "not_found",
+      reason: found.reason,
       prose: stored.prose,
     };
   }
+  const { located, locator: at } = found;
 
-  const located = locateInFile(absPath, loc.symbol);
-  if (!located.ok) {
-    return {
-      status: "relocate_failed",
-      symbol: loc.symbol,
-      reason: located.reason,
-      prose: stored.prose,
-    };
-  }
-
-  if (structuralHash(located.symbol.node) === stored.ast_hash) {
+  if (structuralHash(located.node) === stored.ast_hash) {
     // Structurally identical: any prior stale flag was a false alarm (cosmetic
     // change, or a commit that was later reverted). Self-heal it.
-    if (stored.is_stale) clearStale(db, loc);
-    return { status: "fresh", symbol: loc.symbol, prose: stored.prose };
+    if (stored.is_stale) clearStale(db, at);
+    return { status: "fresh", symbol: at.symbol, prose: stored.prose };
   }
 
-  if (!stored.is_stale) markStale(db, loc);
+  if (!stored.is_stale) markStale(db, at);
   return {
     status: "stale",
-    symbol: loc.symbol,
+    symbol: at.symbol,
     oldProse: stored.prose,
     oldSnapshot: stored.code_snapshot,
-    currentCode: located.symbol.snapshot,
+    currentCode: located.snapshot,
   };
 }
 

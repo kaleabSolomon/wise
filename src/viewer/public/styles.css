@@ -276,6 +276,28 @@ del {
   overflow-x: auto;
 }
 
+/* Anchor state: a quiet mark in the list, a spelled-out chip in the detail. */
+.anchor-dot {
+  font-size: 11px;
+  opacity: 0.55;
+}
+.chip {
+  display: inline-block;
+  margin-left: 10px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 11px;
+  vertical-align: middle;
+}
+.chip-warn {
+  background: var(--stale-bg);
+  color: var(--stale-fg);
+  border-color: transparent;
+}
+
 /* Code header: title on the left, fold toggle on the right. */
 .code-head {
   display: flex;

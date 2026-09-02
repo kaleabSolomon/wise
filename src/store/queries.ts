@@ -12,6 +12,8 @@ export interface Explanation extends Locator {
   code_snapshot: string;
   ast_hash: string;
   is_stale: boolean;
+  /** Opt-in in-code marker tying this row to the code; NULL when unanchored. */
+  anchor_id: string | null;
   created_at: number;
   updated_at: number;
 }
@@ -38,6 +40,7 @@ interface ExplanationRow extends Locator {
   code_snapshot: string;
   ast_hash: string;
   is_stale: number;
+  anchor_id: string | null;
   created_at: number;
   updated_at: number;
 }
@@ -175,6 +178,8 @@ export function latestVersion(
 export interface ExplanationSummary extends Locator {
   id: number;
   is_stale: boolean;
+  /** Whether this row carries an anchor. Cheap: no file is read for a list. */
+  anchored: boolean;
   updated_at: number;
 }
 
@@ -182,11 +187,79 @@ export interface ExplanationSummary extends Locator {
 export function listExplanations(db: DB): ExplanationSummary[] {
   const rows = db
     .prepare(
-      `SELECT id, repo, file_path, symbol, is_stale, updated_at
+      `SELECT id, repo, file_path, symbol, is_stale,
+              anchor_id IS NOT NULL AS anchored, updated_at
        FROM explanations ORDER BY updated_at DESC, id DESC`,
     )
     .all() as Array<
-    Omit<ExplanationSummary, "is_stale"> & { is_stale: number }
+    Omit<ExplanationSummary, "is_stale" | "anchored"> & {
+      is_stale: number;
+      anchored: number;
+    }
   >;
-  return rows.map((r) => ({ ...r, is_stale: r.is_stale === 1 }));
+  return rows.map((r) => ({
+    ...r,
+    is_stale: r.is_stale === 1,
+    anchored: r.anchored === 1,
+  }));
+}
+
+/** Look an explanation up by its in-code anchor, wherever the code now lives. */
+export function getByAnchor(db: DB, anchorId: string): Explanation | undefined {
+  const row = db
+    .prepare(`SELECT * FROM explanations WHERE anchor_id = ?`)
+    .get(anchorId) as ExplanationRow | undefined;
+  return row ? toExplanation(row) : undefined;
+}
+
+export function setAnchor(db: DB, id: number, anchorId: string): void {
+  db.prepare(`UPDATE explanations SET anchor_id = ? WHERE id = ?`).run(
+    anchorId,
+    id,
+  );
+}
+
+/**
+ * Point an existing row at where its code lives now. Used when an anchor is
+ * found under a new name or in a new file — the explanation is the same, only
+ * its address moved.
+ */
+export function relocateExplanation(
+  db: DB,
+  id: number,
+  to: { file_path: string; symbol: string },
+): void {
+  db.prepare(
+    `UPDATE explanations SET file_path = ?, symbol = ? WHERE id = ?`,
+  ).run(to.file_path, to.symbol, id);
+}
+
+/** Whether this repo mints anchors for newly saved explanations. */
+export function anchorsEnabled(db: DB, repo: string): boolean {
+  const row = db
+    .prepare(`SELECT anchors_enabled FROM repo_settings WHERE repo = ?`)
+    .get(repo) as { anchors_enabled: number } | undefined;
+  return row?.anchors_enabled === 1;
+}
+
+export function setAnchorsEnabled(
+  db: DB,
+  repo: string,
+  enabled: boolean,
+): void {
+  db.prepare(
+    `INSERT INTO repo_settings (repo, anchors_enabled) VALUES (?, ?)
+     ON CONFLICT (repo) DO UPDATE
+       SET anchors_enabled = excluded.anchors_enabled, updated_at = unixepoch()`,
+  ).run(repo, enabled ? 1 : 0);
+}
+
+/** Forget every anchor id in one repo. Returns how many rows were cleared. */
+export function clearAnchorsForRepo(db: DB, repo: string): number {
+  return db
+    .prepare(
+      `UPDATE explanations SET anchor_id = NULL
+       WHERE repo = ? AND anchor_id IS NOT NULL`,
+    )
+    .run(repo).changes;
 }

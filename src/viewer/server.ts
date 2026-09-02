@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { Hono } from "hono";
 import { marked } from "marked";
 import { diffWords, createTwoFilesPatch } from "diff";
+import { findAnchorInText, findAnchorInRepo } from "../code/anchor.js";
 import type { DB } from "../store/db.js";
 import {
   listExplanations,
@@ -43,6 +44,39 @@ export function renderExplanationDiff(
       return text;
     })
     .join("");
+}
+
+/**
+ * Where an explanation's anchor actually is, for the viewer's badge.
+ *
+ * `present` distinguishes an anchor doing its job from one whose comment has
+ * been deleted — the row still resolves by name and path, but it has lost its
+ * protection against renames, and that is worth showing rather than hiding.
+ */
+export function anchorState(
+  repo: string,
+  filePath: string,
+  anchorId: string | null,
+): { id: string; present: boolean; file: string | null } | null {
+  if (anchorId === null) return null;
+
+  const path = join(repo, filePath);
+  if (existsSync(path)) {
+    try {
+      if (
+        findAnchorInText(readFileSync(path, "utf8"), anchorId) !== undefined
+      ) {
+        return { id: anchorId, present: true, file: filePath };
+      }
+    } catch {
+      /* unreadable file falls through to the repo-wide search */
+    }
+  }
+
+  const hit = findAnchorInRepo(repo, anchorId);
+  return hit
+    ? { id: anchorId, present: true, file: hit.file }
+    : { id: anchorId, present: false, file: null };
 }
 
 /** Unified patch of old vs current code; the viewer renders + highlights it. */
@@ -138,6 +172,7 @@ export function createViewerApp(db: DB): Hono {
     if (!row) return c.json({ error: "not found" }, 404);
 
     const prev = latestVersion(db, id);
+    const anchor = anchorState(row.repo, row.file_path, row.anchor_id);
     const codeChanged = prev && prev.code_snapshot !== row.code_snapshot;
     return c.json({
       ...row,
@@ -148,6 +183,7 @@ export function createViewerApp(db: DB): Hono {
       code_diff: codeChanged
         ? buildCodeDiff(prev.code_snapshot, row.code_snapshot, row.file_path)
         : null,
+      anchor,
       previous: prev
         ? {
             prose: prev.prose,

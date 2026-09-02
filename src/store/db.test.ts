@@ -44,8 +44,21 @@ describe("migration v1 -> v2 — locator canonicalization", () => {
   afterAll(() => rmSync(base, { recursive: true, force: true }));
 
   /**
+   * Undo everything later migrations added, so the file on disk really is the
+   * shape a v1 build would have left behind. Winding `schema_version` back
+   * alone isn't enough — the migrations would re-run against columns that
+   * already exist.
+   */
+  function windBackToV1(db: ReturnType<typeof openDb>): void {
+    db.exec(`DROP INDEX IF EXISTS idx_explanations_anchor;`);
+    db.exec(`ALTER TABLE explanations DROP COLUMN anchor_id;`);
+    db.exec(`DROP TABLE IF EXISTS repo_settings;`);
+    db.prepare(`UPDATE schema_version SET version = 1`).run();
+  }
+
+  /**
    * Seed rows the way a pre-normalization build would have written them, then
-   * wind `schema_version` back so reopening runs the v2 migration over them.
+   * wind the store back so reopening replays the migrations over them.
    */
   function seedV1Store(): void {
     const db = openDb(dbPath);
@@ -89,7 +102,7 @@ describe("migration v1 -> v2 — locator canonicalization", () => {
       50,
     );
 
-    db.prepare(`UPDATE schema_version SET version = 1`).run();
+    windBackToV1(db);
     db.close();
   }
 

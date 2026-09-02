@@ -31,6 +31,7 @@ interface Row {
   file_path: string;
   symbol: string;
   is_stale: boolean;
+  anchored: boolean;
   updated_at: number;
 }
 interface Detail extends Row {
@@ -38,6 +39,7 @@ interface Detail extends Row {
   code_snapshot: string;
   explanation_diff_html: string | null;
   code_diff: string | null;
+  anchor: { id: string; present: boolean; file: string | null } | null;
 }
 
 /** Get an element that must exist, or fail loudly instead of silently. */
@@ -198,6 +200,9 @@ async function showExplanations(repo: string): Promise<void> {
       '<div class="main"><div class="sym">' +
       esc(r.symbol) +
       (r.is_stale ? ' <span class="badge">stale</span>' : "") +
+      (r.anchored
+        ? ' <span class="anchor-dot" title="Anchored">⚓</span>'
+        : "") +
       "</div>" +
       '<div class="path">' +
       esc(r.file_path) +
@@ -363,6 +368,28 @@ async function loadDetail(id: number): Promise<void> {
       d.explanation_diff_html +
       "</div></div>"
     : "";
+  const anchorChip = ((): string => {
+    if (!d.anchor) return "";
+    if (!d.anchor.present) {
+      return (
+        '<span class="chip chip-warn" title="The marker comment is no longer in the code. ' +
+        'This explanation still resolves by name and path, but will not survive a rename or move.">' +
+        "anchor missing</span>"
+      );
+    }
+    const moved =
+      d.anchor.file && d.anchor.file !== d.file_path
+        ? " · " + esc(d.anchor.file)
+        : "";
+    return (
+      '<span class="chip" title="wise:' +
+      esc(d.anchor.id) +
+      '">anchored' +
+      moved +
+      "</span>"
+    );
+  })();
+
   const codeSection = d.code_diff
     ? '<div class="code-head"><h3 class="code-h">What changed in the code</h3>' +
       '<button class="fold-toggle" id="fold-toggle" hidden></button></div>' +
@@ -378,6 +405,7 @@ async function loadDetail(id: number): Promise<void> {
     esc(d.repo) +
     " › " +
     esc(d.file_path) +
+    anchorChip +
     "</div>" +
     '<div class="detail-cols">' +
     '<div class="detail-left">' +

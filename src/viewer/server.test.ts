@@ -5,7 +5,19 @@ import {
   createViewerApp,
   renderExplanationDiff,
   buildCodeDiff,
+  anchorState,
 } from "./server.js";
+import {
+  mkdtempSync,
+  mkdirSync,
+  writeFileSync,
+  renameSync,
+  realpathSync,
+  rmSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterAll } from "vitest";
 
 const base: SaveInput = {
   repo: "/r",
@@ -235,5 +247,47 @@ describe("renderExplanationDiff", () => {
     const html = renderExplanationDiff("a", "a <script>");
     expect(html).toContain("&lt;script&gt;");
     expect(html).not.toContain("<script>");
+  });
+});
+
+describe("anchorState", () => {
+  const repo = realpathSync.native(mkdtempSync(join(tmpdir(), "wise-badge-")));
+  mkdirSync(join(repo, "src"), { recursive: true });
+  afterAll(() => rmSync(repo, { recursive: true, force: true }));
+
+  const write = (file: string, body: string) =>
+    writeFileSync(join(repo, file), body);
+
+  it("is null for an unanchored explanation", () => {
+    expect(anchorState(repo, "src/a.ts", null)).toBeNull();
+  });
+
+  it("reports an anchor that is where it should be", () => {
+    write("src/a.ts", "// wise:7f3a9c2e\nexport const a = 1;\n");
+    expect(anchorState(repo, "src/a.ts", "7f3a9c2e")).toEqual({
+      id: "7f3a9c2e",
+      present: true,
+      file: "src/a.ts",
+    });
+  });
+
+  it("finds an anchor whose file has moved, and says where", () => {
+    write("src/b.ts", "// wise:aabbccdd\nexport const b = 1;\n");
+    renameSync(join(repo, "src", "b.ts"), join(repo, "src", "moved.ts"));
+
+    expect(anchorState(repo, "src/b.ts", "aabbccdd")).toEqual({
+      id: "aabbccdd",
+      present: true,
+      file: "src/moved.ts",
+    });
+  });
+
+  it("reports a deleted marker as missing rather than hiding it", () => {
+    write("src/c.ts", "export const c = 1;\n");
+    expect(anchorState(repo, "src/c.ts", "deadbeef")).toEqual({
+      id: "deadbeef",
+      present: false,
+      file: null,
+    });
   });
 });
