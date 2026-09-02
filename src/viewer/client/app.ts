@@ -5,6 +5,8 @@
  */
 export {};
 
+import { foldableRuns, type FoldRun } from "../fold.js";
+
 interface Diff2HtmlUIInstance {
   draw(): void;
   highlightCode(): void;
@@ -211,6 +213,146 @@ async function showExplanations(repo: string): Promise<void> {
   }
 }
 
+/*
+ * Folding unchanged lines in the code diff.
+ *
+ * The patch is built with full-file context, so a one-line edit inside a long
+ * function still renders the whole function. Runs of unchanged lines far from
+ * any change fold behind a click, keeping a few lines of context either side.
+ *
+ * The two side-by-side tables hold one row per line at matching indices, so a
+ * fold has to hide — and mark — the same index range in *both*, or the columns
+ * drift out of alignment with each other.
+ */
+
+const FOLD_KEY = "wise:collapseDiff";
+
+let foldEnabled = ((): boolean => {
+  try {
+    return localStorage.getItem(FOLD_KEY) !== "0";
+  } catch {
+    return true; // localStorage may be unavailable; fold by default
+  }
+})();
+
+/** Rows of each side's table, index-aligned across sides. */
+function sideRows(container: HTMLElement): HTMLElement[][] {
+  return [...container.querySelectorAll(".d2h-file-side-diff tbody")].map(
+    (body) =>
+      [...body.querySelectorAll(":scope > tr")].filter(
+        (n): n is HTMLElement => n instanceof HTMLElement,
+      ),
+  );
+}
+
+/** A line is unchanged only when every side agrees it is context. */
+function unchangedAt(sides: HTMLElement[][], index: number): boolean {
+  return sides.every((rows) => {
+    const row = rows[index];
+    return (
+      row !== undefined &&
+      row.querySelector(".d2h-cntx") !== null &&
+      // Hunk headers and change rows are never foldable.
+      row.querySelector(".d2h-info, .d2h-ins, .d2h-del") === null
+    );
+  });
+}
+
+function foldRuns(sides: HTMLElement[][]): FoldRun[] {
+  if (sides.length === 0) return [];
+  const total = Math.min(...sides.map((rows) => rows.length));
+  const unchanged = Array.from({ length: total }, (_, i) =>
+    unchangedAt(sides, i),
+  );
+  return foldableRuns(unchanged);
+}
+
+/** Hide one run in every side, behind a marker row that expands it again. */
+function applyFold(sides: HTMLElement[][], run: FoldRun): void {
+  const count = run.end - run.start;
+  const hidden: HTMLElement[] = [];
+  const markers: HTMLElement[] = [];
+
+  for (const rows of sides) {
+    const first = rows[run.start];
+    if (!first?.parentNode) continue;
+
+    const marker = document.createElement("tr");
+    marker.className = "wise-fold";
+    const cell = document.createElement("td");
+    cell.colSpan = 2;
+    cell.textContent = `⋯ ${count} unchanged line${count === 1 ? "" : "s"}`;
+    marker.appendChild(cell);
+    marker.title = "Show these lines";
+    first.parentNode.insertBefore(marker, first);
+    markers.push(marker);
+
+    for (let i = run.start; i < run.end; i++) {
+      const row = rows[i];
+      if (!row) continue;
+      row.classList.add("wise-folded");
+      hidden.push(row);
+    }
+  }
+
+  // Expanding is one-way: a fold, once opened, stays open until the diff is
+  // redrawn. Re-folding on a second click would move content out from under
+  // the pointer the user just aimed at.
+  const expand = (): void => {
+    for (const row of hidden) row.classList.remove("wise-folded");
+    for (const marker of markers) marker.remove();
+  };
+  for (const marker of markers) marker.addEventListener("click", expand);
+}
+
+/** Draw the diff; returns how many runs *could* be folded, fold state aside. */
+function drawCodeDiff(patch: string): number {
+  const target = el("code-diff");
+  target.innerHTML = "";
+  if (!window.Diff2HtmlUI) return 0;
+
+  const ui = new window.Diff2HtmlUI(
+    target,
+    patch,
+    {
+      drawFileList: false,
+      matching: "lines",
+      outputFormat: "side-by-side",
+      colorScheme: "auto",
+    },
+    window.hljs,
+  );
+  ui.draw();
+  ui.highlightCode();
+
+  const sides = sideRows(target);
+  const runs = foldRuns(sides);
+  if (foldEnabled) for (const run of runs) applyFold(sides, run);
+  return runs.length;
+}
+
+function wireCodeDiff(patch: string): void {
+  const button = document.getElementById("fold-toggle");
+  const render = (): void => {
+    const foldable = drawCodeDiff(patch);
+    if (!button) return;
+    button.textContent = foldEnabled ? "Show whole file" : "Collapse unchanged";
+    // Nothing long enough to fold — don't offer a control that does nothing.
+    button.hidden = foldable === 0;
+  };
+
+  button?.addEventListener("click", () => {
+    foldEnabled = !foldEnabled;
+    try {
+      localStorage.setItem(FOLD_KEY, foldEnabled ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+    render();
+  });
+  render();
+}
+
 async function loadDetail(id: number): Promise<void> {
   const res = await fetch("/api/explanations/" + id);
   const d = (await res.json()) as Detail;
@@ -222,7 +364,9 @@ async function loadDetail(id: number): Promise<void> {
       "</div></div>"
     : "";
   const codeSection = d.code_diff
-    ? '<h3 class="code-h">What changed in the code</h3><div id="code-diff" class="d2h"></div>'
+    ? '<div class="code-head"><h3 class="code-h">What changed in the code</h3>' +
+      '<button class="fold-toggle" id="fold-toggle" hidden></button></div>' +
+      '<div id="code-diff" class="d2h"></div>'
     : '<h3 class="code-h">Current code</h3><pre class="codeblock"><code id="cur-code"></code></pre>';
   detailEl.innerHTML =
     '<div class="detail-head"><h2>' +
@@ -246,21 +390,9 @@ async function loadDetail(id: number): Promise<void> {
     codeSection +
     "</div></div>";
 
-  if (d.code_diff && window.Diff2HtmlUI) {
-    const ui = new window.Diff2HtmlUI(
-      el("code-diff"),
-      d.code_diff,
-      {
-        drawFileList: false,
-        matching: "lines",
-        outputFormat: "side-by-side",
-        colorScheme: "auto",
-      },
-      window.hljs,
-    );
-    ui.draw();
-    ui.highlightCode();
-  } else if (!d.code_diff) {
+  if (d.code_diff) {
+    wireCodeDiff(d.code_diff);
+  } else {
     const codeEl = el("cur-code");
     codeEl.textContent = d.code_snapshot;
     const lang = langOf(d.file_path);

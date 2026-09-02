@@ -276,6 +276,61 @@ del {
   overflow-x: auto;
 }
 
+/* Code header: title on the left, fold toggle on the right. */
+.code-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.code-head .code-h {
+  margin: 0;
+}
+.fold-toggle {
+  font: inherit;
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 9px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.fold-toggle:hover {
+  color: var(--fg);
+  border-color: var(--accent);
+}
+.fold-toggle[hidden] {
+  display: none;
+}
+
+/* A folded-away run of unchanged lines, and the marker that brings it back. */
+tr.wise-folded {
+  display: none;
+}
+tr.wise-fold {
+  cursor: pointer;
+}
+tr.wise-fold > td {
+  padding: 2px 10px;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font:
+    12px/1.6 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  user-select: none;
+}
+tr.wise-fold:hover > td {
+  color: var(--fg);
+  background: var(--code-bg);
+}
+
 /* highlight.js tokens — compact GitHub-ish theme */
 .hljs-comment,
 .hljs-quote {
