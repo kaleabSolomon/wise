@@ -1,0 +1,17 @@
+---
+import Base from "../layouts/Base.astro";
+import Hero from "../components/Hero.astro";
+---
+
+<Base>
+  <div class="ground">
+    <Hero />
+  </div>
+</Base>
+
+<style>
+  .ground {
+    min-height: 100vh;
+    background: var(--ground);
+  }
+</style>

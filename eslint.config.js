@@ -9,6 +9,8 @@ export default tseslint.config(
       "node_modules/",
       "coverage/",
       "src/viewer/public/app.js",
+      // The landing page (Astro) carries its own toolchain.
+      "site/",
     ],
   },
   js.configs.recommended,

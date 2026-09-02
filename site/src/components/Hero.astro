@@ -1,0 +1,180 @@
+---
+/**
+ * The first screen: wordmark, one claim, one line of what it is, the install
+ * command, and the link to the code. The viewer mockup slots in below this.
+ */
+const GITHUB = "https://github.com/kaleabSolomon/wise";
+const INSTALL = "claude mcp add wise -- node /path/to/wise/dist/index.js";
+---
+
+<header class="top wrap">
+  <a class="wordmark rise" href="/" style="--i: 0">Wise</a>
+  <nav class="rise" style="--i: 0">
+    <a class="ghost" href={GITHUB} rel="noopener">GitHub</a>
+  </nav>
+</header>
+
+<section class="hero wrap">
+  <h1 class="rise" style="--i: 1">Explain it once. <span class="dim">Wise remembers.</span></h1>
+  <p class="lede rise" style="--i: 2">
+    A memory for plain-English explanations of your code, kept outside your
+    repo. When the code changes, you get the diff — not a re-explanation.
+  </p>
+
+  <div class="install rise" style="--i: 3">
+    <code id="install-cmd">{INSTALL}</code>
+    <button class="copy" type="button" data-copy={INSTALL} aria-label="Copy install command">
+      <span class="copy-label">Copy</span>
+    </button>
+  </div>
+  <p class="fine rise" style="--i: 4">
+    One MCP server. Nothing is written to your repo.
+    <a class="link" href={GITHUB} rel="noopener">Source on GitHub</a>
+  </p>
+</section>
+
+<script>
+  // Copy-to-clipboard with brief feedback. The only JS the hero needs.
+  for (const button of document.querySelectorAll<HTMLButtonElement>("button.copy")) {
+    const label = button.querySelector<HTMLElement>(".copy-label");
+    button.addEventListener("click", async () => {
+      const text = button.dataset.copy ?? "";
+      try {
+        await navigator.clipboard.writeText(text);
+        if (label) label.textContent = "Copied";
+        button.classList.add("done");
+        setTimeout(() => {
+          if (label) label.textContent = "Copy";
+          button.classList.remove("done");
+        }, 1500);
+      } catch {
+        if (label) label.textContent = "Select and copy";
+      }
+    });
+  }
+</script>
+
+<style>
+  .top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 22px 0;
+  }
+  .wordmark {
+    font-weight: 650;
+    letter-spacing: -0.02em;
+    font-size: 17px;
+  }
+  .ghost {
+    font-size: 14px;
+    color: var(--muted);
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    transition:
+      color 0.18s ease,
+      border-color 0.18s ease,
+      transform 0.18s ease;
+  }
+  .ghost:hover {
+    color: var(--fg);
+    border-color: var(--accent);
+    transform: translateY(-1px);
+  }
+
+  .hero {
+    padding: 64px 0 28px;
+    max-width: 720px;
+  }
+  h1 {
+    margin: 0 0 18px;
+    font-size: clamp(34px, 5.2vw, 56px);
+    line-height: 1.06;
+    letter-spacing: -0.035em;
+    font-weight: 660;
+  }
+  .dim {
+    color: var(--muted);
+  }
+  .lede {
+    margin: 0 0 30px;
+    font-size: clamp(16px, 1.6vw, 19px);
+    line-height: 1.55;
+    color: var(--muted);
+    max-width: 58ch;
+  }
+
+  /* The install line: a panel with the hairline edge, code inside, copy on the right. */
+  .install {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 12px 12px 16px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    max-width: 640px;
+    overflow: hidden;
+  }
+  .install::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 1px;
+    background: var(--edge-line);
+  }
+  .install code {
+    flex: 1;
+    min-width: 0;
+    overflow-x: auto;
+    white-space: nowrap;
+    font-size: 13.5px;
+    color: var(--fg);
+  }
+  .copy {
+    flex: none;
+    font: inherit;
+    font-size: 13px;
+    color: var(--muted);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 6px 12px;
+    cursor: pointer;
+    transition:
+      color 0.18s ease,
+      border-color 0.18s ease,
+      background 0.18s ease;
+  }
+  .copy:hover {
+    color: var(--fg);
+    border-color: var(--accent);
+  }
+  .copy.done {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+
+  .fine {
+    margin: 14px 0 0;
+    font-size: 13.5px;
+    color: var(--muted);
+  }
+  .link {
+    color: var(--accent);
+    margin-left: 6px;
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.18s ease;
+  }
+  .link:hover {
+    border-color: var(--accent);
+  }
+
+  @media (max-width: 640px) {
+    .hero {
+      padding-top: 40px;
+    }
+  }
+</style>

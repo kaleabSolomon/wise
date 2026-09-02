@@ -39,3 +39,6 @@ Thumbs.db
 # Planning / design docs — kept local, never tracked
 *.md
 !README.md
+
+# Astro generated types (site/)
+.astro/
