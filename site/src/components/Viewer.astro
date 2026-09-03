@@ -136,7 +136,10 @@
   .app {
     display: grid;
     grid-template-columns: 220px 1fr;
-    min-height: 380px;
+    /* No min-height: the row sizes to whichever column's content is taller
+       (main, in practice), so the panel ends right where the content does
+       instead of leaving empty space below it. */
+    align-items: start;
   }
 
   /* ---- Sidebar (mirrors aside/.nav-head/.item in the viewer) ------------ */
@@ -178,7 +181,7 @@
 
   /* ---- Detail ----------------------------------------------------------- */
   main {
-    padding: 20px 24px;
+    padding: 20px 24px 26px;
     min-width: 0;
   }
   h2 {

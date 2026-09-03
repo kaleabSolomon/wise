@@ -15,22 +15,29 @@ const INSTALL = "claude mcp add wise -- node /path/to/wise/dist/index.js";
 </header>
 
 <section class="hero wrap">
-  <h1 class="rise" style="--i: 1">Explain it once. <span class="dim">Wise remembers.</span></h1>
-  <p class="lede rise" style="--i: 2">
-    A memory for plain-English explanations of your code, kept outside your
-    repo. When the code changes, you get the diff — not a re-explanation.
-  </p>
+  <div class="hero-grid">
+    <div class="hero-text">
+      <h1 class="rise" style="--i: 1">Explain it once. <span class="dim">Wise remembers.</span></h1>
+      <p class="lede rise" style="--i: 2">
+        A memory for plain-English explanations of your code, kept outside
+        your repo. When the code changes, you get the diff — not a
+        re-explanation.
+      </p>
+    </div>
 
-  <div class="install rise" style="--i: 3">
-    <code id="install-cmd">{INSTALL}</code>
-    <button class="copy" type="button" data-copy={INSTALL} aria-label="Copy install command">
-      <span class="copy-label">Copy</span>
-    </button>
+    <div class="hero-install rise" style="--i: 3">
+      <div class="install">
+        <code id="install-cmd">{INSTALL}</code>
+        <button class="copy" type="button" data-copy={INSTALL} aria-label="Copy install command">
+          <span class="copy-label">Copy</span>
+        </button>
+      </div>
+      <p class="fine">
+        One MCP server. Nothing is written to your repo.
+        <a class="link" href={GITHUB} rel="noopener">Source on GitHub</a>
+      </p>
+    </div>
   </div>
-  <p class="fine rise" style="--i: 4">
-    One MCP server. Nothing is written to your repo.
-    <a class="link" href={GITHUB} rel="noopener">Source on GitHub</a>
-  </p>
 </section>
 
 <script>
@@ -85,9 +92,21 @@ const INSTALL = "claude mcp add wise -- node /path/to/wise/dist/index.js";
 
   .hero {
     padding: 64px 0 28px;
-    max-width: 720px;
+  }
+  .hero-grid {
+    display: grid;
+    /* The text column caps itself at 720px below; the second track is wide
+       enough that the install command only needs one wrap, not a wall of
+       horizontal scroll cut off mid-word. */
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 420px);
+    gap: 40px;
+    align-items: start;
   }
   h1 {
+    /* Capped here rather than on the grid track, so the hero's left edge
+       lines up with the viewer and the sections below it regardless of how
+       wide the text column happens to be. */
+    max-width: 720px;
     margin: 0 0 18px;
     font-size: clamp(34px, 5.2vw, 56px);
     line-height: 1.06;
@@ -98,24 +117,30 @@ const INSTALL = "claude mcp add wise -- node /path/to/wise/dist/index.js";
     color: var(--muted);
   }
   .lede {
-    margin: 0 0 30px;
+    margin: 0;
     font-size: clamp(16px, 1.6vw, 19px);
     line-height: 1.55;
     color: var(--muted);
-    max-width: 58ch;
+    max-width: 46ch;
+  }
+
+  /* The right column: install command up top, sitting level with the title. */
+  .hero-install {
+    padding-top: 10px;
   }
 
   /* The install line: a panel with the hairline edge, code inside, copy on the right. */
   .install {
     position: relative;
     display: flex;
-    align-items: center;
+    /* flex-start, not center: once the command wraps to two lines the copy
+       button should sit level with the first line, not the vertical middle. */
+    align-items: flex-start;
     gap: 12px;
     padding: 12px 12px 12px 16px;
     background: var(--panel);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    max-width: 640px;
     overflow: hidden;
   }
   .install::before {
@@ -128,13 +153,18 @@ const INSTALL = "claude mcp add wise -- node /path/to/wise/dist/index.js";
   .install code {
     flex: 1;
     min-width: 0;
-    overflow-x: auto;
-    white-space: nowrap;
-    font-size: 13.5px;
+    /* Wrap rather than scroll: a command silently cut off mid-word with no
+       scroll affordance visible is worse than two shorter lines. */
+    white-space: normal;
+    word-break: break-word;
+    line-height: 1.5;
+    padding-top: 2px;
+    font-size: 12.5px;
     color: var(--fg);
   }
   .copy {
     flex: none;
+    align-self: flex-start;
     font: inherit;
     font-size: 13px;
     color: var(--muted);
@@ -158,8 +188,9 @@ const INSTALL = "claude mcp add wise -- node /path/to/wise/dist/index.js";
   }
 
   .fine {
-    margin: 14px 0 0;
-    font-size: 13.5px;
+    margin: 12px 0 0;
+    font-size: 13px;
+    line-height: 1.6;
     color: var(--muted);
   }
   .link {
@@ -172,6 +203,17 @@ const INSTALL = "claude mcp add wise -- node /path/to/wise/dist/index.js";
     border-color: var(--accent);
   }
 
+  /* Below this the two columns are too tight for the install panel to sit
+     beside a full-size headline — stack, install second. */
+  @media (max-width: 780px) {
+    .hero-grid {
+      grid-template-columns: 1fr;
+      gap: 28px;
+    }
+    .hero-install {
+      padding-top: 0;
+    }
+  }
   @media (max-width: 640px) {
     .hero {
       padding-top: 40px;

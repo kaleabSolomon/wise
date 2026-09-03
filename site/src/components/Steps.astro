@@ -1,0 +1,93 @@
+---
+/**
+ * What it does, in three steps. Deliberately the product's actual behaviour —
+ * the third step is the one that distinguishes it, so it gets the diff colours
+ * the viewer uses.
+ */
+const steps = [
+  {
+    n: "01",
+    title: "Explain it once",
+    body: "Ask Claude to explain a function and remember it. The prose goes to a SQLite store in your home directory — nothing lands in your repo, and nothing shows up in git status.",
+  },
+  {
+    n: "02",
+    title: "Ask again whenever",
+    body: "If the code hasn't changed, you get your own explanation back, word for word. No re-reading the function, no waiting for it to be derived a second time.",
+  },
+  {
+    n: "03",
+    title: "Changed code gives a diff",
+    body: "If it has changed, you get the code as it was, the code as it is, and what you wrote last time — so the explanation gets refreshed rather than rebuilt from nothing.",
+  },
+];
+---
+
+<section class="steps wrap reveal" aria-label="How Wise works">
+  <ol>
+    {
+      steps.map((step) => (
+        <li class="panel">
+          <span class="n">{step.n}</span>
+          <h3>{step.title}</h3>
+          <p>{step.body}</p>
+        </li>
+      ))
+    }
+  </ol>
+</section>
+
+<style>
+  .steps {
+    /* The real gap above this section is .ground's padding-bottom (see
+       index.astro) plus this — kept small so the two together land near the
+       64-72px rhythm used between the other sections, not 84px on top of it. */
+    padding: 24px 0 0;
+  }
+  ol {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+  }
+  li {
+    padding: 20px 20px 22px;
+    transition:
+      border-color 0.25s ease,
+      transform 0.25s ease;
+  }
+  li:hover {
+    border-color: var(--muted);
+    transform: translateY(-2px);
+  }
+  .n {
+    display: block;
+    font: 11px var(--mono);
+    letter-spacing: 0.1em;
+    color: var(--accent);
+    margin-bottom: 12px;
+  }
+  h3 {
+    margin: 0 0 8px;
+    font-size: 15.5px;
+    font-weight: 620;
+    letter-spacing: -0.01em;
+  }
+  p {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--muted);
+  }
+
+  @media (max-width: 860px) {
+    ol {
+      grid-template-columns: 1fr;
+    }
+    .steps {
+      padding-top: 16px;
+    }
+  }
+</style>
