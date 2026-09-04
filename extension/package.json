@@ -1,0 +1,42 @@
+{
+  "name": "wise-hover",
+  "displayName": "Wise",
+  "description": "Show your saved Wise explanation when you hover a symbol.",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other"],
+  "main": "./out/extension.cjs",
+  "activationEvents": ["onStartupFinished"],
+  "contributes": {
+    "configuration": {
+      "title": "Wise",
+      "properties": {
+        "wise.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show Wise explanations on hover."
+        },
+        "wise.port": {
+          "type": "number",
+          "default": 4319,
+          "description": "Port the Wise viewer is listening on. Matches WISE_VIEWER_PORT if you have overridden it."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.28.2",
+    "typescript": "^5.7.0"
+  }
+}
