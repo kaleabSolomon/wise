@@ -1,0 +1,31 @@
+---
+import Base from "../layouts/Base.astro";
+import Hero from "../components/Hero.astro";
+import Viewer from "../components/Viewer.astro";
+import Steps from "../components/Steps.astro";
+import Install from "../components/Install.astro";
+---
+
+<Base>
+  <div class="ground">
+    <Hero />
+    <div class="wrap"><Viewer /></div>
+  </div>
+
+  <Steps />
+  <Install />
+</Base>
+
+<style>
+  /*
+   * No forced min-height: that was sized for the hero alone (part 1), before
+   * the viewer mockup moved in underneath it. Content now runs close to a
+   * full viewport already, and forcing 100vh on top of it was the ~190px gap
+   * before the "how it works" cards — invisible in the markup, real on screen.
+   * A deliberate, modest gap replaces it below instead.
+   */
+  .ground {
+    background: var(--ground);
+    padding-bottom: 48px;
+  }
+</style>

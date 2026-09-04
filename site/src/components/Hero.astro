@@ -1,0 +1,318 @@
+---
+/**
+ * The first screen: wordmark, one claim, one line of what it is, the install
+ * command, and the link to the code. The viewer mockup slots in below this.
+ */
+import Icon from "./Icon.astro";
+
+const REPO = "kaleabSolomon/wise";
+const GITHUB = `https://github.com/${REPO}`;
+const INSTALL = "claude mcp add wise -- node /path/to/wise/dist/index.js";
+---
+
+<header class="top wrap">
+  <a class="wordmark rise" href="/" style="--i: 0">Wise</a>
+  <nav class="rise" style="--i: 0">
+    <a class="ghost" href={GITHUB} rel="noopener" aria-label="Wise on GitHub" data-repo={REPO}>
+      <Icon name="github" size={16} />
+      <span class="stars" hidden>
+        <Icon name="star" size={11} />
+        <span class="count"></span>
+      </span>
+    </a>
+  </nav>
+</header>
+
+<section class="hero wrap">
+  <div class="hero-grid">
+    <div class="hero-text">
+      <h1 class="rise" style="--i: 1">Explain it once. <span class="dim">Wise remembers.</span></h1>
+      <p class="lede rise" style="--i: 2">
+        A memory for plain-English explanations of your code, kept outside
+        your repo. When the code changes, you get the diff, not a
+        re-explanation.
+      </p>
+    </div>
+
+    <div class="hero-install rise" style="--i: 3">
+      <div class="install">
+        <code id="install-cmd">{INSTALL}</code>
+        <button class="copy" type="button" data-copy={INSTALL} aria-label="Copy install command" title="Copy">
+          <span class="i-copy"><Icon name="copy" size={15} /></span>
+          <span class="i-check" hidden><Icon name="check" size={15} /></span>
+        </button>
+      </div>
+      <p class="fine">
+        One MCP server. Nothing is written to your repo.
+        <a class="link" href={GITHUB} rel="noopener">Source on GitHub</a>
+      </p>
+    </div>
+  </div>
+</section>
+
+<script>
+  // Every `.copy` button on the page, wherever it lives, swaps its icon for a
+  // tick on success. The button is icon-only, so the state it reports has to
+  // land in the accessible name too, not just the glyph.
+  for (const button of document.querySelectorAll<HTMLButtonElement>("button.copy")) {
+    const copyIcon = button.querySelector<HTMLElement>(".i-copy");
+    const checkIcon = button.querySelector<HTMLElement>(".i-check");
+    const label = button.getAttribute("aria-label") ?? "Copy";
+
+    button.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(button.dataset.copy ?? "");
+        if (copyIcon) copyIcon.hidden = true;
+        if (checkIcon) checkIcon.hidden = false;
+        button.classList.add("done");
+        button.setAttribute("aria-label", "Copied");
+        button.title = "Copied";
+        setTimeout(() => {
+          if (copyIcon) copyIcon.hidden = false;
+          if (checkIcon) checkIcon.hidden = true;
+          button.classList.remove("done");
+          button.setAttribute("aria-label", label);
+          button.title = "Copy";
+        }, 1600);
+      } catch {
+        // Clipboard access can be refused (insecure context, permissions).
+        // Say so rather than leaving a button that looks like it did nothing.
+        button.title = "Copy failed — select the text instead";
+        button.setAttribute("aria-label", "Copy failed, select the text instead");
+      }
+    });
+  }
+
+  // Live star count. The repo is private for now, so this 404s and the count
+  // simply stays hidden; it appears on its own once the repo is public.
+  // Cached per session because the unauthenticated API allows 60 calls an hour
+  // per IP, and a reload should not spend one.
+  const link = document.querySelector<HTMLAnchorElement>("a.ghost[data-repo]");
+  const repo = link?.dataset.repo;
+  if (link && repo) {
+    const stars = link.querySelector<HTMLElement>(".stars");
+    const count = link.querySelector<HTMLElement>(".count");
+
+    const show = (n: number) => {
+      if (!stars || !count) return;
+      count.textContent = n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
+      stars.hidden = false;
+      link.setAttribute("aria-label", `Wise on GitHub, ${n} stars`);
+    };
+
+    const cacheKey = `gh-stars:${repo}`;
+    let cached: string | null = null;
+    try {
+      cached = sessionStorage.getItem(cacheKey);
+    } catch {
+      /* storage can be unavailable; fall through to the network */
+    }
+
+    if (cached !== null && Number.isFinite(Number(cached))) {
+      show(Number(cached));
+    } else {
+      void (async () => {
+        try {
+          const res = await fetch(`https://api.github.com/repos/${repo}`);
+          if (!res.ok) return;
+          const data: unknown = await res.json();
+          const n = (data as { stargazers_count?: unknown }).stargazers_count;
+          if (typeof n !== "number") return;
+          try {
+            sessionStorage.setItem(cacheKey, String(n));
+          } catch {
+            /* ignore */
+          }
+          show(n);
+        } catch {
+          /* offline or blocked: leave the count hidden */
+        }
+      })();
+    }
+  }
+</script>
+
+<style>
+  .top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 22px 0;
+  }
+  .wordmark {
+    font-weight: 650;
+    letter-spacing: -0.02em;
+    font-size: 17px;
+  }
+  .ghost {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: var(--muted);
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    transition:
+      color 0.18s ease,
+      border-color 0.18s ease,
+      transform 0.18s ease;
+  }
+  .ghost:hover {
+    color: var(--fg);
+    border-color: var(--accent);
+    transform: translateY(-1px);
+  }
+  /* Star count, revealed only once the API actually returns one. */
+  .stars {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding-left: 8px;
+    border-left: 1px solid var(--border);
+    font-size: 12.5px;
+    font-variant-numeric: tabular-nums;
+  }
+  .stars[hidden] {
+    display: none;
+  }
+
+  .hero {
+    padding: 64px 0 28px;
+  }
+  .hero-grid {
+    display: grid;
+    /* The text column caps itself at 720px below; the second track is wide
+       enough that the install command only needs one wrap, not a wall of
+       horizontal scroll cut off mid-word. */
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 420px);
+    gap: 40px;
+    align-items: start;
+  }
+  h1 {
+    /* Capped here rather than on the grid track, so the hero's left edge
+       lines up with the viewer and the sections below it regardless of how
+       wide the text column happens to be. */
+    max-width: 720px;
+    margin: 0 0 18px;
+    font-size: clamp(34px, 5.2vw, 56px);
+    line-height: 1.06;
+    letter-spacing: -0.035em;
+    font-weight: 660;
+  }
+  .dim {
+    color: var(--muted);
+  }
+  .lede {
+    margin: 0;
+    font-size: clamp(16px, 1.6vw, 19px);
+    line-height: 1.55;
+    color: var(--muted);
+    max-width: 46ch;
+  }
+
+  /* The right column: install command up top, sitting level with the title. */
+  .hero-install {
+    padding-top: 10px;
+  }
+
+  /* The install line: a panel with the hairline edge, code inside, copy on the right. */
+  .install {
+    position: relative;
+    display: flex;
+    /* flex-start, not center: once the command wraps to two lines the copy
+       button should sit level with the first line, not the vertical middle. */
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 12px 12px 16px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .install::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 1px;
+    background: var(--edge-line);
+  }
+  .install code {
+    flex: 1;
+    min-width: 0;
+    /* Wrap rather than scroll: a command silently cut off mid-word with no
+       scroll affordance visible is worse than two shorter lines. */
+    white-space: normal;
+    word-break: break-word;
+    line-height: 1.5;
+    padding-top: 2px;
+    font-size: 12.5px;
+    color: var(--fg);
+  }
+  /* Icon-only: a square target rather than a word. */
+  .copy {
+    flex: none;
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    color: var(--muted);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    cursor: pointer;
+    transition:
+      color 0.18s ease,
+      border-color 0.18s ease,
+      background 0.18s ease;
+  }
+  .copy:hover {
+    color: var(--fg);
+    border-color: var(--accent);
+  }
+  .copy.done {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+  .copy [hidden] {
+    display: none;
+  }
+  .copy span {
+    display: inline-flex;
+  }
+
+  .fine {
+    margin: 12px 0 0;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--muted);
+  }
+  .link {
+    color: var(--accent);
+    margin-left: 6px;
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.18s ease;
+  }
+  .link:hover {
+    border-color: var(--accent);
+  }
+
+  /* Below this the two columns are too tight for the install panel to sit
+     beside a full-size headline — stack, install second. */
+  @media (max-width: 780px) {
+    .hero-grid {
+      grid-template-columns: 1fr;
+      gap: 28px;
+    }
+    .hero-install {
+      padding-top: 0;
+    }
+  }
+  @media (max-width: 640px) {
+    .hero {
+      padding-top: 40px;
+    }
+  }
+</style>

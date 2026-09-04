@@ -1,0 +1,15 @@
+{
+  "name": "wise-site",
+  "private": true,
+  "version": "0.0.1",
+  "description": "Landing page for Wise. Static, built with Astro.",
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "astro": "^5.18.2"
+  }
+}

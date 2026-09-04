@@ -1,0 +1,302 @@
+---
+/**
+ * Install and use. The commands come straight from the README — a landing
+ * page that drifts from the actual setup is worse than no landing page.
+ *
+ * Two tabs, not one: Wise is an MCP server, not a Claude Code exclusive, and
+ * showing only the `claude mcp add` form would say otherwise. The second tab
+ * is the JSON shape Claude Desktop uses, which most MCP-compatible editors
+ * (Cursor, Windsurf, Cline, and others) also accept — exact file location
+ * still varies by client, so that's left to their own docs rather than guessed.
+ */
+import Icon from "./Icon.astro";
+
+const CONTACT = "https://x.com/IKaleabSlmn";
+// Resolved when the site is built, so a rebuild keeps it current.
+const YEAR = new Date().getFullYear();
+
+const BUILD = [
+  { c: true, t: "# build it" },
+  { t: "git clone https://github.com/kaleabSolomon/wise" },
+  { t: "cd wise && pnpm install && pnpm build" },
+];
+
+const claudeLines = [
+  ...BUILD,
+  { t: "" },
+  { c: true, t: "# register it, from inside any project" },
+  { t: "claude mcp add wise -- node /path/to/wise/dist/index.js" },
+  { t: "" },
+  { c: true, t: "# then just ask" },
+  { t: "Explain resolvePrice and remember it with wise." },
+  { t: "" },
+  { c: true, t: "# or set it once in AGENTS.md / CLAUDE.md and stop asking" },
+  { t: "After explaining a symbol, save the explanation with wise." },
+];
+
+const otherLines = [
+  ...BUILD,
+  { t: "" },
+  { c: true, t: "# add to your client's MCP config. Claude Desktop, Cursor," },
+  { c: true, t: "# Windsurf, Cline and most MCP-compatible editors take this shape" },
+  { t: "{" },
+  { t: '  "mcpServers": {' },
+  { t: '    "wise": {' },
+  { t: '      "command": "node",' },
+  { t: '      "args": ["/path/to/wise/dist/index.js"]' },
+  { t: "    }" },
+  { t: "  }" },
+  { t: "}" },
+  { t: "" },
+  { c: true, t: "# then set it once in AGENTS.md / CLAUDE.md and stop asking" },
+  { t: "After explaining a symbol, save the explanation with wise." },
+];
+
+/** Rendered ahead of time: an inline map inside <pre> confuses the parser. */
+const esc = (t: string) =>
+  t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const render = (lines: typeof claudeLines) =>
+  lines.map((l) => `<span class="${l.c ? "c" : "t"}">${esc(l.t)}</span>`).join("\n");
+
+const claudeHtml = render(claudeLines);
+const otherHtml = render(otherLines);
+
+const claudeCopy = [
+  "git clone https://github.com/kaleabSolomon/wise",
+  "cd wise && pnpm install && pnpm build",
+  "claude mcp add wise -- node /path/to/wise/dist/index.js",
+].join("\n");
+
+const otherCopy = [
+  "git clone https://github.com/kaleabSolomon/wise",
+  "cd wise && pnpm install && pnpm build",
+  "",
+  JSON.stringify(
+    { mcpServers: { wise: { command: "node", args: ["/path/to/wise/dist/index.js"] } } },
+    null,
+    2,
+  ),
+].join("\n");
+---
+
+<section class="install wrap" aria-label="Install and use">
+  <div class="head reveal" style="--i: 0">
+    <h2>Install &amp; use</h2>
+    <p>Node 20 or newer, and pnpm. Works with any MCP-compatible client.</p>
+  </div>
+
+  <div class="tabs reveal" role="tablist" style="--i: 1">
+    <button class="tab active" type="button" data-tab="claude" role="tab" aria-selected="true">
+      Claude Code
+    </button>
+    <button class="tab" type="button" data-tab="other" role="tab" aria-selected="false">
+      Other MCP clients
+    </button>
+  </div>
+
+  <div class="panels reveal" style="--i: 2">
+  <div class="panel" data-panel="claude" role="tabpanel">
+    <button class="copy" type="button" data-copy={claudeCopy} aria-label="Copy the Claude Code install commands" title="Copy">
+      <span class="i-copy"><Icon name="copy" size={15} /></span>
+      <span class="i-check" hidden><Icon name="check" size={15} /></span>
+    </button>
+    <pre><code set:html={claudeHtml} /></pre>
+  </div>
+
+  <div class="panel" data-panel="other" role="tabpanel" hidden>
+    <button class="copy" type="button" data-copy={otherCopy} aria-label="Copy the install commands and config" title="Copy">
+      <span class="i-copy"><Icon name="copy" size={15} /></span>
+      <span class="i-check" hidden><Icon name="check" size={15} /></span>
+    </button>
+    <pre><code set:html={otherHtml} /></pre>
+  </div>
+  </div>
+
+  <div class="notes reveal" style="--i: 3">
+  <p class="after">
+    The viewer runs alongside the server. Read your explanations at
+    <span class="mono">127.0.0.1:4319</span>.
+  </p>
+  <p class="after">
+    Ask it to install the post-commit hook once, and explanations get flagged
+    stale as you commit, without a reminder to run anything.
+  </p>
+  <p class="soon">An editor extension that shows explanations on hover is in progress.</p>
+  </div>
+
+  <footer class="reveal" style="--i: 4">
+    <span>&copy; {YEAR} Kaleab Solomon</span>
+    <a href={CONTACT} rel="noopener" aria-label="Contact Kaleab Solomon on X">Contact</a>
+  </footer>
+</section>
+
+<script>
+  // Tab switching only — copying is handled by the page-wide `.copy` listener.
+  const tabs = document.querySelectorAll<HTMLButtonElement>(".install .tab");
+  const panels = document.querySelectorAll<HTMLElement>(".install [data-panel]");
+  for (const tab of tabs) {
+    tab.addEventListener("click", () => {
+      for (const t of tabs) {
+        const active = t === tab;
+        t.classList.toggle("active", active);
+        t.setAttribute("aria-selected", String(active));
+      }
+      for (const panel of panels) {
+        panel.hidden = panel.dataset.panel !== tab.dataset.tab;
+      }
+    });
+  }
+</script>
+
+<style>
+  .install {
+    /* Was 72px — tightened along with the section above it. */
+    padding: 56px 0 0;
+  }
+  .head,
+  .tabs,
+  .panels,
+  .notes {
+    max-width: 760px;
+  }
+  .head {
+    margin-bottom: 18px;
+  }
+  h2 {
+    margin: 0 0 4px;
+    font-size: clamp(22px, 2.6vw, 28px);
+    letter-spacing: -0.025em;
+    font-weight: 640;
+  }
+  .head p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  .tab {
+    font: inherit;
+    font-size: 13px;
+    color: var(--muted);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    padding: 6px 12px;
+    cursor: pointer;
+    transition:
+      color 0.18s ease,
+      background 0.18s ease,
+      border-color 0.18s ease;
+  }
+  .tab:hover {
+    color: var(--fg);
+  }
+  .tab.active {
+    color: var(--fg);
+    background: var(--panel);
+    border-color: var(--border);
+  }
+
+  .panel {
+    padding: 18px 20px;
+  }
+  pre {
+    margin: 0;
+    overflow-x: auto;
+  }
+  code {
+    font-size: 13px;
+    line-height: 1.85;
+    color: var(--fg);
+  }
+  .c {
+    color: var(--muted);
+  }
+
+  /* Icon-only, matching the hero's button. */
+  .copy {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    color: var(--muted);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    cursor: pointer;
+    transition:
+      color 0.18s ease,
+      border-color 0.18s ease;
+  }
+  .copy:hover {
+    color: var(--fg);
+    border-color: var(--accent);
+  }
+  .copy.done {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+  .copy [hidden] {
+    display: none;
+  }
+  .copy span {
+    display: inline-flex;
+  }
+
+  .after {
+    margin: 16px 0 0;
+    font-size: 14px;
+    color: var(--muted);
+  }
+  .after + .after {
+    margin-top: 6px;
+  }
+  .mono {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--fg);
+  }
+  .soon {
+    margin: 6px 0 0;
+    font-size: 13.5px;
+    color: var(--muted);
+    opacity: 0.8;
+  }
+
+  footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 56px;
+    padding: 20px 0 40px;
+    border-top: 1px solid var(--border);
+    font-size: 13.5px;
+    color: var(--muted);
+  }
+  footer a {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    transition: color 0.18s ease;
+  }
+  footer a:hover {
+    color: var(--fg);
+  }
+
+  @media (max-width: 860px) {
+    .install {
+      padding-top: 44px;
+    }
+  }
+</style>

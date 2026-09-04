@@ -1,0 +1,62 @@
+---
+import "../styles/global.css";
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const {
+  title = "Wise",
+  description =
+    "A memory for plain-English explanations of your code, kept outside your repo. When the code changes, you get the diff — not a re-explanation.",
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0f1115" media="(prefers-color-scheme: dark)" />
+  </head>
+  <body>
+    <slot />
+
+    <script>
+      // Mark the document as script-capable, then reveal sections as they
+      // scroll in. Both steps are here so the page degrades to fully visible
+      // if anything below fails.
+      document.documentElement.classList.add("js");
+
+      const targets = document.querySelectorAll<HTMLElement>(".reveal");
+      const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      if (still || !("IntersectionObserver" in window)) {
+        for (const el of targets) el.classList.add("in");
+      } else {
+        const io = new IntersectionObserver(
+          (entries) => {
+            for (const entry of entries) {
+              if (!entry.isIntersecting) continue;
+              entry.target.classList.add("in");
+              io.unobserve(entry.target);
+            }
+          },
+          // threshold 0 with a small fixed bottom margin, not a percentage
+          // with a 12% threshold: an element at the very end of the document
+          // (the footer) can never reach 12% visibility inside a root shrunk
+          // by 8% of the viewport, so it would never reveal at all.
+          { rootMargin: "0px 0px -40px 0px", threshold: 0 },
+        );
+        for (const el of targets) io.observe(el);
+      }
+    </script>
+  </body>
+</html>
