@@ -103,6 +103,10 @@ pre {
   animation-delay: calc(var(--i, 0) * 90ms);
 }
 @keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
   to {
     opacity: 1;
     transform: none;
@@ -117,26 +121,32 @@ pre {
 }
 
 /*
- * Reveal on scroll. Hidden only once JS has confirmed it can reveal them
- * again — without that guard, a failed script would leave the lower half of
- * the page permanently blank.
+ * Reveal on scroll: the same entrance as `.rise`, just triggered when the
+ * element scrolls into view instead of on load.
+ *
+ * It runs the `rise` keyframes rather than a transition. For anything already
+ * in the viewport at load, the observer adds `.in` in effectively the same
+ * frame that `.js` hid it, so the browser never paints the start state and a
+ * transition would be skipped entirely — the element would simply appear while
+ * the hero animated. An animation runs whenever it is applied, so both halves
+ * of the page now enter the same way.
+ *
+ * Hidden only once JS has confirmed it can reveal them again: without that
+ * guard, a failed script would leave the lower half of the page blank.
  */
 .js .reveal {
   opacity: 0;
-  transform: translateY(14px);
-  transition:
-    opacity 0.6s cubic-bezier(0.2, 0.7, 0.2, 1),
-    transform 0.6s cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 .js .reveal.in {
-  opacity: 1;
-  transform: none;
+  animation: rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+  animation-delay: calc(var(--i, 0) * 90ms);
 }
 @media (prefers-reduced-motion: reduce) {
-  .js .reveal {
+  .js .reveal,
+  .js .reveal.in {
     opacity: 1;
     transform: none;
-    transition: none;
+    animation: none;
   }
 }
 

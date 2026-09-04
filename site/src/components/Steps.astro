@@ -8,7 +8,7 @@ const steps = [
   {
     n: "01",
     title: "Explain it once",
-    body: "Ask Claude to explain a function and remember it. The prose goes to a SQLite store in your home directory — nothing lands in your repo, and nothing shows up in git status.",
+    body: "Ask your agent to explain a function and remember it. The prose goes to a SQLite store in your home directory. Nothing lands in your repo, and nothing shows up in git status.",
   },
   {
     n: "02",
@@ -18,16 +18,16 @@ const steps = [
   {
     n: "03",
     title: "Changed code gives a diff",
-    body: "If it has changed, you get the code as it was, the code as it is, and what you wrote last time — so the explanation gets refreshed rather than rebuilt from nothing.",
+    body: "If it has changed, you get the code as it was, the code as it is, and what you wrote last time, so the explanation gets refreshed rather than rebuilt from nothing.",
   },
 ];
 ---
 
-<section class="steps wrap reveal" aria-label="How Wise works">
+<section class="steps wrap" aria-label="How Wise works">
   <ol>
     {
-      steps.map((step) => (
-        <li class="panel">
+      steps.map((step, i) => (
+        <li class="panel reveal" style={`--i: ${i}`}>
           <span class="n">{step.n}</span>
           <h3>{step.title}</h3>
           <p>{step.body}</p>

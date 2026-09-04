@@ -3,14 +3,23 @@
  * The first screen: wordmark, one claim, one line of what it is, the install
  * command, and the link to the code. The viewer mockup slots in below this.
  */
-const GITHUB = "https://github.com/kaleabSolomon/wise";
+import Icon from "./Icon.astro";
+
+const REPO = "kaleabSolomon/wise";
+const GITHUB = `https://github.com/${REPO}`;
 const INSTALL = "claude mcp add wise -- node /path/to/wise/dist/index.js";
 ---
 
 <header class="top wrap">
   <a class="wordmark rise" href="/" style="--i: 0">Wise</a>
   <nav class="rise" style="--i: 0">
-    <a class="ghost" href={GITHUB} rel="noopener">GitHub</a>
+    <a class="ghost" href={GITHUB} rel="noopener" aria-label="Wise on GitHub" data-repo={REPO}>
+      <Icon name="github" size={16} />
+      <span class="stars" hidden>
+        <Icon name="star" size={11} />
+        <span class="count"></span>
+      </span>
+    </a>
   </nav>
 </header>
 
@@ -20,7 +29,7 @@ const INSTALL = "claude mcp add wise -- node /path/to/wise/dist/index.js";
       <h1 class="rise" style="--i: 1">Explain it once. <span class="dim">Wise remembers.</span></h1>
       <p class="lede rise" style="--i: 2">
         A memory for plain-English explanations of your code, kept outside
-        your repo. When the code changes, you get the diff — not a
+        your repo. When the code changes, you get the diff, not a
         re-explanation.
       </p>
     </div>
@@ -28,8 +37,9 @@ const INSTALL = "claude mcp add wise -- node /path/to/wise/dist/index.js";
     <div class="hero-install rise" style="--i: 3">
       <div class="install">
         <code id="install-cmd">{INSTALL}</code>
-        <button class="copy" type="button" data-copy={INSTALL} aria-label="Copy install command">
-          <span class="copy-label">Copy</span>
+        <button class="copy" type="button" data-copy={INSTALL} aria-label="Copy install command" title="Copy">
+          <span class="i-copy"><Icon name="copy" size={15} /></span>
+          <span class="i-check" hidden><Icon name="check" size={15} /></span>
         </button>
       </div>
       <p class="fine">
@@ -41,23 +51,84 @@ const INSTALL = "claude mcp add wise -- node /path/to/wise/dist/index.js";
 </section>
 
 <script>
-  // Copy-to-clipboard with brief feedback. The only JS the hero needs.
+  // Every `.copy` button on the page, wherever it lives, swaps its icon for a
+  // tick on success. The button is icon-only, so the state it reports has to
+  // land in the accessible name too, not just the glyph.
   for (const button of document.querySelectorAll<HTMLButtonElement>("button.copy")) {
-    const label = button.querySelector<HTMLElement>(".copy-label");
+    const copyIcon = button.querySelector<HTMLElement>(".i-copy");
+    const checkIcon = button.querySelector<HTMLElement>(".i-check");
+    const label = button.getAttribute("aria-label") ?? "Copy";
+
     button.addEventListener("click", async () => {
-      const text = button.dataset.copy ?? "";
       try {
-        await navigator.clipboard.writeText(text);
-        if (label) label.textContent = "Copied";
+        await navigator.clipboard.writeText(button.dataset.copy ?? "");
+        if (copyIcon) copyIcon.hidden = true;
+        if (checkIcon) checkIcon.hidden = false;
         button.classList.add("done");
+        button.setAttribute("aria-label", "Copied");
+        button.title = "Copied";
         setTimeout(() => {
-          if (label) label.textContent = "Copy";
+          if (copyIcon) copyIcon.hidden = false;
+          if (checkIcon) checkIcon.hidden = true;
           button.classList.remove("done");
-        }, 1500);
+          button.setAttribute("aria-label", label);
+          button.title = "Copy";
+        }, 1600);
       } catch {
-        if (label) label.textContent = "Select and copy";
+        // Clipboard access can be refused (insecure context, permissions).
+        // Say so rather than leaving a button that looks like it did nothing.
+        button.title = "Copy failed — select the text instead";
+        button.setAttribute("aria-label", "Copy failed, select the text instead");
       }
     });
+  }
+
+  // Live star count. The repo is private for now, so this 404s and the count
+  // simply stays hidden; it appears on its own once the repo is public.
+  // Cached per session because the unauthenticated API allows 60 calls an hour
+  // per IP, and a reload should not spend one.
+  const link = document.querySelector<HTMLAnchorElement>("a.ghost[data-repo]");
+  const repo = link?.dataset.repo;
+  if (link && repo) {
+    const stars = link.querySelector<HTMLElement>(".stars");
+    const count = link.querySelector<HTMLElement>(".count");
+
+    const show = (n: number) => {
+      if (!stars || !count) return;
+      count.textContent = n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
+      stars.hidden = false;
+      link.setAttribute("aria-label", `Wise on GitHub, ${n} stars`);
+    };
+
+    const cacheKey = `gh-stars:${repo}`;
+    let cached: string | null = null;
+    try {
+      cached = sessionStorage.getItem(cacheKey);
+    } catch {
+      /* storage can be unavailable; fall through to the network */
+    }
+
+    if (cached !== null && Number.isFinite(Number(cached))) {
+      show(Number(cached));
+    } else {
+      void (async () => {
+        try {
+          const res = await fetch(`https://api.github.com/repos/${repo}`);
+          if (!res.ok) return;
+          const data: unknown = await res.json();
+          const n = (data as { stargazers_count?: unknown }).stargazers_count;
+          if (typeof n !== "number") return;
+          try {
+            sessionStorage.setItem(cacheKey, String(n));
+          } catch {
+            /* ignore */
+          }
+          show(n);
+        } catch {
+          /* offline or blocked: leave the count hidden */
+        }
+      })();
+    }
   }
 </script>
 
@@ -74,6 +145,9 @@ const INSTALL = "claude mcp add wise -- node /path/to/wise/dist/index.js";
     font-size: 17px;
   }
   .ghost {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
     font-size: 14px;
     color: var(--muted);
     padding: 6px 12px;
@@ -88,6 +162,19 @@ const INSTALL = "claude mcp add wise -- node /path/to/wise/dist/index.js";
     color: var(--fg);
     border-color: var(--accent);
     transform: translateY(-1px);
+  }
+  /* Star count, revealed only once the API actually returns one. */
+  .stars {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding-left: 8px;
+    border-left: 1px solid var(--border);
+    font-size: 12.5px;
+    font-variant-numeric: tabular-nums;
+  }
+  .stars[hidden] {
+    display: none;
   }
 
   .hero {
@@ -162,16 +249,19 @@ const INSTALL = "claude mcp add wise -- node /path/to/wise/dist/index.js";
     font-size: 12.5px;
     color: var(--fg);
   }
+  /* Icon-only: a square target rather than a word. */
   .copy {
     flex: none;
     align-self: flex-start;
-    font: inherit;
-    font-size: 13px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
     color: var(--muted);
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: 7px;
-    padding: 6px 12px;
     cursor: pointer;
     transition:
       color 0.18s ease,
@@ -185,6 +275,12 @@ const INSTALL = "claude mcp add wise -- node /path/to/wise/dist/index.js";
   .copy.done {
     color: var(--accent);
     border-color: var(--accent);
+  }
+  .copy [hidden] {
+    display: none;
+  }
+  .copy span {
+    display: inline-flex;
   }
 
   .fine {
