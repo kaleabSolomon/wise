@@ -291,3 +291,66 @@ describe("anchorState", () => {
     });
   });
 });
+
+describe("GET /api/at", () => {
+  const atRepo = realpathSync.native(
+    mkdtempSync(join(tmpdir(), "wise-api-at-")),
+  );
+  mkdirSync(join(atRepo, "src"), { recursive: true });
+  writeFileSync(
+    join(atRepo, "src", "orders.ts"),
+    ["export function processOrder() {", "  return 1;", "}"].join("\n"),
+  );
+  afterAll(() => rmSync(atRepo, { recursive: true, force: true }));
+
+  const ask = (params: Record<string, string>) =>
+    app.request(`/api/at?${new URLSearchParams(params).toString()}`);
+
+  it("returns the explanation at a position", async () => {
+    saveExplanation(db, {
+      repo: atRepo,
+      file_path: "src/orders.ts",
+      symbol: "processOrder",
+      prose: "Totals an order.",
+      code_snapshot: "c",
+      ast_hash: "h",
+    });
+
+    const res = await ask({ repo: atRepo, file: "src/orders.ts", line: "2" });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      found: true,
+      symbol: "processOrder",
+      prose: "Totals an order.",
+      is_stale: false,
+      via: "symbol",
+    });
+  });
+
+  /*
+   * A hover asks on every pointer move. "Nothing here" is the common answer
+   * and must not look like a failure, or an editor has to special-case it.
+   */
+  it("answers 200 and found:false when nothing is stored there", async () => {
+    const res = await ask({ repo: atRepo, file: "src/orders.ts", line: "2" });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ found: false });
+  });
+
+  it("rejects a missing or unusable line", async () => {
+    expect((await ask({ repo: atRepo, file: "src/orders.ts" })).status).toBe(
+      400,
+    );
+    expect(
+      (await ask({ repo: atRepo, file: "src/orders.ts", line: "0" })).status,
+    ).toBe(400);
+    expect(
+      (await ask({ repo: atRepo, file: "src/orders.ts", line: "abc" })).status,
+    ).toBe(400);
+  });
+
+  it("rejects a missing repo or file", async () => {
+    expect((await ask({ file: "src/orders.ts", line: "2" })).status).toBe(400);
+    expect((await ask({ repo: atRepo, line: "2" })).status).toBe(400);
+  });
+});

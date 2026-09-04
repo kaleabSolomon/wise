@@ -6,6 +6,7 @@ import { Hono } from "hono";
 import { marked } from "marked";
 import { diffWords, createTwoFilesPatch } from "diff";
 import { findAnchorInText, findAnchorInRepo } from "../code/anchor.js";
+import { explanationAt } from "../tools/at.js";
 import type { DB } from "../store/db.js";
 import {
   listExplanations,
@@ -163,6 +164,33 @@ export function createViewerApp(db: DB): Hono {
   );
 
   app.get("/api/explanations", (c) => c.json(listExplanations(db)));
+
+  /*
+   * Position lookup, for an editor hover.
+   *
+   * Deliberately quiet: a position with nothing stored is `{ found: false }`
+   * and a 200, not a 404. The caller asks on every hover, and an editor should
+   * not have to treat "no explanation here" as an error.
+   */
+  app.get("/api/at", (c) => {
+    const repo = c.req.query("repo");
+    const file = c.req.query("file");
+    const line = Number(c.req.query("line"));
+
+    if (
+      repo === undefined ||
+      file === undefined ||
+      !Number.isInteger(line) ||
+      line < 1
+    ) {
+      return c.json(
+        { error: "repo, file and a 1-based line are required" },
+        400,
+      );
+    }
+
+    return c.json(explanationAt(db, { repo, file, line }));
+  });
 
   app.get("/api/explanations/:id", (c) => {
     const id = Number(c.req.param("id"));

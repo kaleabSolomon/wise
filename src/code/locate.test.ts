@@ -2,7 +2,12 @@ import { describe, it, expect, afterAll } from "vitest";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { locateInSource, locateInFile, locateAfterLine } from "./locate.js";
+import {
+  locateInSource,
+  locateInFile,
+  locateAfterLine,
+  enclosingSymbolNames,
+} from "./locate.js";
 
 const SRC = `import { x } from "y";
 
@@ -198,5 +203,60 @@ describe("locateAfterLine", () => {
     if (!r.ok) return;
     expect(r.symbol.name).toBe("f");
     expect(r.symbol.snapshot).toContain("return a;");
+  });
+});
+
+describe("enclosingSymbolNames", () => {
+  const dir = mkdtempSync(join(tmpdir(), "wise-enclosing-"));
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+
+  function names(source: string, line: number) {
+    const file = join(dir, `enc-${Math.random().toString(36).slice(2)}.ts`);
+    writeFileSync(file, source);
+    return enclosingSymbolNames(file, line);
+  }
+
+  const NESTED = [
+    "export function outer() {", // 1
+    "  const local = 1;", // 2
+    "  function inner() {", // 3
+    "    return local;", // 4
+    "  }", // 5
+    "  return inner();", // 6
+    "}", // 7
+    "", // 8
+    "export const rate = 0.2;", // 9
+  ].join("\n");
+
+  it("orders innermost first", () => {
+    // Line 4 sits inside `inner`, which sits inside `outer`.
+    expect(names(NESTED, 4)).toEqual(["inner", "outer"]);
+  });
+
+  it("puts a local declaration ahead of its enclosing function", () => {
+    expect(names(NESTED, 2)).toEqual(["local", "outer"]);
+  });
+
+  it("returns the single declaration for a top-level const", () => {
+    expect(names(NESTED, 9)).toEqual(["rate"]);
+  });
+
+  it("returns nothing for a line outside any declaration", () => {
+    expect(names(NESTED, 8)).toEqual([]);
+  });
+
+  it("names a class member as Class.member, with the class after it", () => {
+    const source = [
+      "class Cart {",
+      "  total() {",
+      "    return 0;",
+      "  }",
+      "}",
+    ].join("\n");
+    expect(names(source, 3)).toEqual(["Cart.total", "Cart"]);
+  });
+
+  it("returns nothing for a file it cannot read", () => {
+    expect(enclosingSymbolNames(join(dir, "does-not-exist.ts"), 1)).toEqual([]);
   });
 });
