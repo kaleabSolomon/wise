@@ -8,3 +8,6 @@ src/viewer/public/app.js.map
 
 # The landing page (site/) has its own toolchain (Astro); root formatting skips it.
 site/
+
+# The extension has its own toolchain; root formatting skips it.
+extension/

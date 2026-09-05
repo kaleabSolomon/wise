@@ -190,9 +190,74 @@ async function showExplanations(repo: string): Promise<void> {
     '<div class="nav-head" style="padding-top:0">' +
     esc(projectName(repo)) +
     "</div>";
-  navEl
-    .querySelector(".back")
-    ?.addEventListener("click", () => void showProjects());
+  navEl.querySelector(".back")?.addEventListener("click", () => {
+    setRoute(null);
+    /*
+     * Deep links.
+     *
+     * `#e/<id>` opens one explanation directly, which is what lets anything
+     * outside the viewer — the editor extension's hover, a note, a message —
+     * point at a specific entry rather than at the front page.
+     *
+     * A hash rather than a real path: the viewer is a single static page, so a
+     * server route would have to exist purely to serve the same HTML back.
+     */
+    function routedId(): number | null {
+      const match = /^#e\/(\d+)$/.exec(location.hash);
+      const id = match?.[1] === undefined ? NaN : Number(match[1]);
+      return Number.isInteger(id) ? id : null;
+    }
+
+    /**
+     * Point the URL at an entry, or back at the list.
+     *
+     * `applied` guards the round trip: writing the hash fires `hashchange`, and
+     * re-rendering from our own write would fight whatever is already on screen.
+     */
+    let applied: string = location.hash;
+    function setRoute(id: number | null): void {
+      const hash = id === null ? "" : `#e/${id}`;
+      if (hash === location.hash) return;
+      applied = hash;
+      if (hash === "") {
+        history.replaceState(null, "", location.pathname + location.search);
+      } else {
+        location.hash = hash;
+      }
+    }
+
+    /** Open whatever the URL points at, falling back to the project list. */
+    async function route(): Promise<void> {
+      applied = location.hash;
+      const id = routedId();
+      if (id === null) {
+        await showProjects();
+        return;
+      }
+
+      // The sidebar is scoped to one repo, so the row has to be found before its
+      // list can be drawn around it.
+      const row = (await fetchRows()).find((r) => r.id === id);
+      if (!row) {
+        // A stale link, most likely to an explanation that has since been
+        // deleted. Drop it and show the list rather than an empty screen.
+        setRoute(null);
+        await showProjects();
+        return;
+      }
+
+      activeId = id;
+      await showExplanations(row.repo);
+      await loadDetail(id);
+    }
+
+    window.addEventListener("hashchange", () => {
+      if (location.hash === applied) return; // our own write
+      void route();
+    });
+
+    void route();
+  });
   for (const r of rows) {
     const node = document.createElement("div");
     node.className = "item" + (r.id === activeId ? " active" : "");
@@ -212,6 +277,7 @@ async function showExplanations(repo: string): Promise<void> {
       for (const s of navEl.querySelectorAll(".item"))
         s.classList.remove("active");
       node.classList.add("active");
+      setRoute(r.id);
       void loadDetail(r.id);
     };
     navEl.appendChild(node);
@@ -449,15 +515,153 @@ function wireDelete(id: number): void {
         });
         if (!res.ok) return;
         activeId = null;
+        setRoute(null);
         detailEl.innerHTML = '<p class="empty">Explanation deleted.</p>';
         const rows = await fetchRows();
         if (currentRepo && rows.some((r) => r.repo === currentRepo)) {
           void showExplanations(currentRepo);
         } else {
-          void showProjects();
+          /*
+           * Deep links.
+           *
+           * `#e/<id>` opens one explanation directly, which is what lets anything
+           * outside the viewer — the editor extension's hover, a note, a message —
+           * point at a specific entry rather than at the front page.
+           *
+           * A hash rather than a real path: the viewer is a single static page, so a
+           * server route would have to exist purely to serve the same HTML back.
+           */
+          function routedId(): number | null {
+            const match = /^#e\/(\d+)$/.exec(location.hash);
+            const id = match?.[1] === undefined ? NaN : Number(match[1]);
+            return Number.isInteger(id) ? id : null;
+          }
+
+          /**
+           * Point the URL at an entry, or back at the list.
+           *
+           * `applied` guards the round trip: writing the hash fires `hashchange`, and
+           * re-rendering from our own write would fight whatever is already on screen.
+           */
+          let applied: string = location.hash;
+          function setRoute(id: number | null): void {
+            const hash = id === null ? "" : `#e/${id}`;
+            if (hash === location.hash) return;
+            applied = hash;
+            if (hash === "") {
+              history.replaceState(
+                null,
+                "",
+                location.pathname + location.search,
+              );
+            } else {
+              location.hash = hash;
+            }
+          }
+
+          /** Open whatever the URL points at, falling back to the project list. */
+          async function route(): Promise<void> {
+            applied = location.hash;
+            const id = routedId();
+            if (id === null) {
+              await showProjects();
+              return;
+            }
+
+            // The sidebar is scoped to one repo, so the row has to be found before its
+            // list can be drawn around it.
+            const row = (await fetchRows()).find((r) => r.id === id);
+            if (!row) {
+              // A stale link, most likely to an explanation that has since been
+              // deleted. Drop it and show the list rather than an empty screen.
+              setRoute(null);
+              await showProjects();
+              return;
+            }
+
+            activeId = id;
+            await showExplanations(row.repo);
+            await loadDetail(id);
+          }
+
+          window.addEventListener("hashchange", () => {
+            if (location.hash === applied) return; // our own write
+            void route();
+          });
+
+          void route();
         }
       })();
   };
 }
 
-void showProjects();
+/*
+ * Deep links.
+ *
+ * `#e/<id>` opens one explanation directly, which is what lets anything
+ * outside the viewer — the editor extension's hover, a note, a message —
+ * point at a specific entry rather than at the front page.
+ *
+ * A hash rather than a real path: the viewer is a single static page, so a
+ * server route would have to exist purely to serve the same HTML back.
+ */
+function routedId(): number | null {
+  const match = /^#e\/(\d+)$/.exec(location.hash);
+  const id = match?.[1] === undefined ? NaN : Number(match[1]);
+  return Number.isInteger(id) ? id : null;
+}
+
+/**
+ * Point the URL at an entry, or back at the list.
+ *
+ * `applied` guards the round trip: writing the hash fires `hashchange`, and
+ * re-rendering from our own write would fight whatever is already on screen.
+ */
+let applied: string = location.hash;
+function setRoute(id: number | null): void {
+  const hash = id === null ? "" : `#e/${id}`;
+  if (hash === location.hash) return;
+  applied = hash;
+  if (hash === "") {
+    history.replaceState(null, "", location.pathname + location.search);
+  } else {
+    location.hash = hash;
+  }
+}
+
+/** Open whatever the URL points at, falling back to the project list. */
+async function route(): Promise<void> {
+  applied = location.hash;
+  const id = routedId();
+  if (id === null) {
+    await showProjects();
+    return;
+  }
+
+  // The sidebar is scoped to one repo, so the row has to be found before its
+  // list can be drawn around it.
+  const row = (await fetchRows()).find((r) => r.id === id);
+  if (!row) {
+    // A stale link, most likely to an explanation that has since been
+    // deleted. Say so and clear the panel: changing only the hash does not
+    // reload the page, so whatever was open would otherwise stay on screen
+    // and read as the answer to the link that was just followed.
+    setRoute(null);
+    activeId = null;
+    detailEl.innerHTML =
+      '<p class="empty">That explanation no longer exists.</p>';
+    await showProjects();
+    return;
+  }
+
+  activeId = id;
+  await showExplanations(row.repo);
+  await loadDetail(id);
+}
+
+window.addEventListener("hashchange", () => {
+  if (location.hash === applied) return; // our own write
+  void route();
+});
+
+void route();
