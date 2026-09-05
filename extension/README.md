@@ -50,6 +50,25 @@ The `.vscode/launch.json` that F5 uses is untracked, because this repo ignores
 `.vscode/`. It exists locally; if you want it committed, add
 `!extension/.vscode/` to the root `.gitignore`.
 
+## Installing it for real
+
+```sh
+pnpm package        # writes wise-hover-<version>.vsix
+```
+
+Then either drag the `.vsix` onto the Extensions view, or:
+
+```sh
+code --install-extension wise-hover-0.0.1.vsix
+```
+
+Cursor, Windsurf and Antigravity accept the same file through their own
+Extensions view, or their CLI if they ship one. The `.vsix` is not committed.
+
+Publishing to the Marketplace additionally needs a registered publisher ID
+matching `publisher` in `package.json`, and a licence file — neither exists
+yet, so packaging works but publishing would be rejected.
+
 ## Quiet by design
 
 Wise not running, the wrong port, no explanation at the cursor, a file outside

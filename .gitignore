@@ -43,5 +43,6 @@ Thumbs.db
 # Astro generated types (site/)
 .astro/
 
-# Extension bundle (built by esbuild)
+# Extension bundle (built by esbuild) and its package
 extension/out/
+*.vsix
