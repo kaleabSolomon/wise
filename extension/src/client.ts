@@ -20,7 +20,10 @@ export type AtResult =
       id: number;
       symbol: string;
       file: string;
+      /** The whole explanation. */
       prose: string;
+      /** Its opening paragraph, which is all a hover has room for. */
+      summary: string;
       is_stale: boolean;
       via: "symbol" | "anchor";
     };
@@ -39,6 +42,11 @@ function viewerOrigin(): string {
     .getConfiguration("wise")
     .get<number>("port", 4319);
   return `http://127.0.0.1:${port}`;
+}
+
+/** Deep link to one explanation in the viewer. */
+export function viewerUrlFor(id: number): string {
+  return `${viewerOrigin()}/#e/${id}`;
 }
 
 export function isEnabled(): boolean {

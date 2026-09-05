@@ -8,7 +8,8 @@ const FOUND = {
   id: 1,
   symbol: "processOrder",
   file: "src/orders.ts",
-  prose: "Sums the order and adds 20% tax.",
+  prose: "Sums the order and adds 20% tax.\n\nAnd a second paragraph nobody needs in a tooltip.",
+  summary: "Sums the order and adds 20% tax.",
   is_stale: false,
   via: "symbol" as const,
 };
@@ -71,10 +72,43 @@ describe("hover provider", () => {
     expect(WISE_SELECTOR).toEqual({ scheme: "file" });
   });
 
-  it("renders the symbol and the prose", async () => {
+  it("renders the symbol and the opening paragraph", async () => {
     const hover = await hoverAtLine(2);
     expect(markdown(hover).value).toContain("**processOrder**");
     expect(markdown(hover).value).toContain("Sums the order and adds 20% tax.");
+  });
+
+  it("shows the summary, not the whole explanation", async () => {
+    // Explanations run to hundreds of words; a tooltip that fills the screen
+    // on every pointer move is worse than one that points at the rest.
+    const value = markdown(await hoverAtLine(2)).value;
+    expect(value).not.toContain("nobody needs in a tooltip");
+  });
+
+  it("links to the entry in the viewer", async () => {
+    expect(markdown(await hoverAtLine(2)).value).toContain(
+      "(http://127.0.0.1:4319/#e/1)",
+    );
+  });
+
+  it("says the explanation continues when it was cut short", async () => {
+    expect(markdown(await hoverAtLine(2)).value).toContain(
+      "Read the full explanation",
+    );
+  });
+
+  it("just offers the viewer when nothing was cut", async () => {
+    respond({ ...FOUND, prose: FOUND.summary });
+    const value = markdown(await hoverAtLine(2)).value;
+    expect(value).toContain("Open in Wise");
+    expect(value).not.toContain("Read the full explanation");
+  });
+
+  it("keeps the deep link on a custom port", async () => {
+    state.config["port"] = 4999;
+    expect(markdown(await hoverAtLine(2)).value).toContain(
+      "(http://127.0.0.1:4999/#e/1)",
+    );
   });
 
   it("converts the editor's 0-based line to the 1-based line wise expects", async () => {

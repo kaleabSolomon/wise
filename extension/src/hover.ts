@@ -7,21 +7,38 @@
  */
 
 import * as vscode from "vscode";
-import { explanationAt, isEnabled, type AtResult } from "./client.js";
+import {
+  explanationAt,
+  isEnabled,
+  viewerUrlFor,
+  type AtResult,
+} from "./client.js";
 
 /** Every file on disk; Wise answers `found: false` for the rest. */
 export const WISE_SELECTOR: vscode.DocumentSelector = { scheme: "file" };
 
-function render(result: Extract<AtResult, { found: true }>): vscode.MarkdownString {
+function render(
+  result: Extract<AtResult, { found: true }>,
+): vscode.MarkdownString {
   const md = new vscode.MarkdownString();
-  // The prose is the user's own text, saved by their agent. Rendering it as
-  // trusted markdown would let stored text run commands from a hover.
+  // The prose is the user's own text, saved by their agent. Trusted markdown
+  // would let a stored `command:` link run something straight from a hover,
+  // which is also why the link below is a plain URL rather than a command.
   md.isTrusted = false;
   md.supportHtml = false;
 
-  const stale = result.is_stale ? "  ·  $(warning) stale" : "";
+  const stale = result.is_stale ? "  ·  _stale_" : "";
   md.appendMarkdown(`**${result.symbol}**${stale}\n\n`);
-  md.appendMarkdown(result.prose);
+
+  // The opening paragraph only. Explanations here run to hundreds of words,
+  // and a tooltip that fills the screen on every pointer move is worse than
+  // one that says enough to place the symbol and points at the rest.
+  md.appendMarkdown(result.summary);
+
+  const truncated = result.summary.trim() !== result.prose.trim();
+  md.appendMarkdown(
+    `\n\n[${truncated ? "Read the full explanation" : "Open in Wise"}](${viewerUrlFor(result.id)})`,
+  );
   return md;
 }
 
