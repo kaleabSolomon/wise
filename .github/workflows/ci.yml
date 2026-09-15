@@ -17,6 +17,12 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+          # Three separate pnpm projects, so the cache key has to follow all
+          # three lockfiles.
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            site/pnpm-lock.yaml
+            extension/pnpm-lock.yaml
 
       - run: pnpm install --frozen-lockfile
 
@@ -25,3 +31,17 @@ jobs:
       - run: pnpm test
       # Not covered by typecheck: the esbuild viewer bundle and its asset copy.
       - run: pnpm build
+
+      - name: Landing page
+        working-directory: site
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+
+      - name: Editor extension
+        working-directory: extension
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm typecheck
+          pnpm test
+          pnpm build

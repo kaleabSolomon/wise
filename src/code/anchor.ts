@@ -66,6 +66,12 @@ export function findAnchorInText(
   return undefined;
 }
 
+/** The anchor id on this exact line, if there is one. */
+export function anchorIdOnLine(text: string, line: number): string | undefined {
+  const match = ANCHOR_PATTERN.exec(text.split("\n")[line - 1] ?? "");
+  return match?.[1];
+}
+
 /**
  * The anchor id marking the declaration that starts at `line`, if any — the
  * marker sits on one of the few lines above it, past any decorators or

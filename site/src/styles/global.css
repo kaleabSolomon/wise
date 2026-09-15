@@ -1,0 +1,167 @@
+/*
+ * Design tokens for the landing page.
+ *
+ * The palette is lifted from the local viewer (src/viewer/public/styles.css)
+ * so the page and the product read as one thing. Anything added on top for
+ * the page — the hairline edge, the type scale — is kept separate and named
+ * so it can be tuned without touching the shared colours.
+ */
+
+:root {
+  color-scheme: light dark;
+
+  /* Shared with the viewer. */
+  --bg: #ffffff;
+  --fg: #1a1a1a;
+  --muted: #6b7280;
+  --border: #e5e7eb;
+  --panel: #f7f7f8;
+  --accent: #4f46e5;
+  --code-bg: #f3f4f6;
+
+  /* Page-only. A hairline that catches light along the top of a panel — the
+     brushed-metal cue — and a soft ground behind the hero. */
+  --edge: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0));
+  --edge-line: rgba(0, 0, 0, 0.06);
+  --ground: radial-gradient(
+    1200px 600px at 50% -10%,
+    rgba(79, 70, 229, 0.06),
+    transparent 70%
+  );
+
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --max: 1080px;
+  --radius: 10px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1115;
+    --fg: #e6e6e6;
+    --muted: #9aa0aa;
+    --border: #262a33;
+    --panel: #151821;
+    --accent: #8b8bf5;
+    --code-bg: #171a22;
+
+    --edge: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0));
+    --edge-line: rgba(255, 255, 255, 0.08);
+    --ground: radial-gradient(
+      1200px 600px at 50% -10%,
+      rgba(139, 139, 245, 0.1),
+      transparent 70%
+    );
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  font: 16px/1.6 var(--font);
+  color: var(--fg);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+code,
+pre {
+  font-family: var(--mono);
+  font-size: 0.92em;
+}
+
+/* Layout. */
+.wrap {
+  width: min(100% - 40px, var(--max));
+  margin-inline: auto;
+}
+
+/*
+ * Motion. One entrance for everything: a short rise that settles. Elements opt
+ * in with `.rise` and stagger with `--i`. Turned off wholesale for anyone who
+ * has asked their OS for less motion.
+ */
+.rise {
+  opacity: 0;
+  transform: translateY(10px);
+  animation: rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+  animation-delay: calc(var(--i, 0) * 90ms);
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rise {
+    opacity: 1;
+    transform: none;
+    animation: none;
+  }
+}
+
+/*
+ * Reveal on scroll: the same entrance as `.rise`, just triggered when the
+ * element scrolls into view instead of on load.
+ *
+ * It runs the `rise` keyframes rather than a transition. For anything already
+ * in the viewport at load, the observer adds `.in` in effectively the same
+ * frame that `.js` hid it, so the browser never paints the start state and a
+ * transition would be skipped entirely — the element would simply appear while
+ * the hero animated. An animation runs whenever it is applied, so both halves
+ * of the page now enter the same way.
+ *
+ * Hidden only once JS has confirmed it can reveal them again: without that
+ * guard, a failed script would leave the lower half of the page blank.
+ */
+.js .reveal {
+  opacity: 0;
+}
+.js .reveal.in {
+  animation: rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+  animation-delay: calc(var(--i, 0) * 90ms);
+}
+@media (prefers-reduced-motion: reduce) {
+  .js .reveal,
+  .js .reveal.in {
+    opacity: 1;
+    transform: none;
+    animation: none;
+  }
+}
+
+/* A panel with the hairline catching light along its top edge. */
+.panel {
+  position: relative;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.panel::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: var(--edge-line);
+}

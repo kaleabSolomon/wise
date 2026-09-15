@@ -1,3 +1,4 @@
+import { statSync } from "node:fs";
 import { Project, Node } from "ts-morph";
 import type { SourceFile } from "ts-morph";
 
@@ -99,6 +100,89 @@ function firstDeclarationNameAfter(
   });
 
   return best?.name;
+}
+
+/*
+ * Parsed-file cache for the hover path.
+ *
+ * A hover fires repeatedly as the pointer moves, and parsing a file per hover
+ * is wasteful. Entries are keyed by mtime and size so an edited file is
+ * re-parsed rather than answered from a stale tree. Deliberately small: this
+ * is a latency cache, not a store.
+ *
+ * Only `locateEnclosing` uses it. Save and get are not hot paths, and giving
+ * them a cache would mean reasoning about staleness in two places.
+ */
+const PARSE_CACHE_LIMIT = 8;
+const parseCache = new Map<string, { key: string; sf: SourceFile }>();
+
+function cachedSourceFile(filePath: string): SourceFile | undefined {
+  let key: string;
+  try {
+    const stat = statSync(filePath);
+    key = `${stat.mtimeMs}:${stat.size}`;
+  } catch {
+    return undefined;
+  }
+
+  const hit = parseCache.get(filePath);
+  if (hit?.key === key) {
+    // Re-insert so eviction drops the least recently used, not the oldest.
+    parseCache.delete(filePath);
+    parseCache.set(filePath, hit);
+    return hit.sf;
+  }
+
+  const project = new Project({
+    skipAddingFilesFromTsConfig: true,
+    compilerOptions: { allowJs: true },
+  });
+  let sf: SourceFile;
+  try {
+    sf = project.addSourceFileAtPath(filePath);
+  } catch {
+    return undefined;
+  }
+
+  parseCache.set(filePath, { key, sf });
+  if (parseCache.size > PARSE_CACHE_LIMIT) {
+    const oldest = parseCache.keys().next().value;
+    if (oldest !== undefined) parseCache.delete(oldest);
+  }
+  return sf;
+}
+
+/**
+ * Every declaration whose span contains `line`, innermost first.
+ *
+ * The counterpart to `locateAfterLine`, which finds the declaration below a
+ * line. Hover needs this one: a reader points at a function's name or
+ * somewhere in its body, not at the marker above it.
+ *
+ * A list rather than a single answer, because the innermost declaration is
+ * frequently not the interesting one. Pointing at `const sub = sum(items)`
+ * inside `processOrder` has `sub` as its innermost declaration; the reader
+ * means the function. The caller walks outward until something is actually
+ * explained, which also keeps an explained local variable resolvable.
+ */
+export function enclosingSymbolNames(filePath: string, line: number): string[] {
+  const sf = cachedSourceFile(filePath);
+  if (!sf) return [];
+
+  const found: Array<{ span: number; name: string }> = [];
+  sf.forEachDescendant((node) => {
+    const name = declaredName(node);
+    if (name === undefined) return;
+    const start = node.getStartLineNumber();
+    const end = node.getEndLineNumber();
+    if (line < start || line > end) return;
+    found.push({ span: end - start, name });
+  });
+
+  return found
+    .sort((a, b) => a.span - b.span)
+    .map((entry) => entry.name)
+    .filter((name, i, all) => all.indexOf(name) === i);
 }
 
 export function locateInSource(

@@ -1,0 +1,12 @@
+# Everything that is not the built bundle, the manifest, or the readme.
+# The bundle in out/ is self-contained, so no source or tooling needs to ship.
+.vscode/**
+src/**
+test/**
+node_modules/**
+esbuild.mjs
+vitest.config.ts
+tsconfig.json
+pnpm-lock.yaml
+**/*.map
+**/*.vsix

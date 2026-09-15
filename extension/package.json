@@ -1,0 +1,68 @@
+{
+  "name": "wise-hover",
+  "displayName": "Wise",
+  "description": "Show your saved Wise explanation when you hover a symbol.",
+  "license": "MIT",
+  "version": "0.0.1",
+  "private": true,
+  "publisher": "kaleabSolomon",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kaleabSolomon/wise.git",
+    "directory": "extension"
+  },
+  "homepage": "https://github.com/kaleabSolomon/wise#readme",
+  "bugs": {
+    "url": "https://github.com/kaleabSolomon/wise/issues"
+  },
+  "keywords": [
+    "documentation",
+    "hover",
+    "mcp",
+    "explanations",
+    "wise"
+  ],
+  "type": "module",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./out/extension.cjs",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "configuration": {
+      "title": "Wise",
+      "properties": {
+        "wise.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show Wise explanations on hover."
+        },
+        "wise.port": {
+          "type": "number",
+          "default": 4319,
+          "description": "Port the Wise viewer is listening on. Matches WISE_VIEWER_PORT if you have overridden it."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "package": "vsce package --no-dependencies"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.9.2",
+    "esbuild": "^0.28.2",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0"
+  }
+}

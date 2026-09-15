@@ -1,0 +1,71 @@
+---
+/**
+ * Inline SVG icons, drawn on a 16px grid.
+ *
+ * Inlined rather than loaded from a sprite or icon font so they inherit
+ * `currentColor` and cost no extra request. `aria-hidden` throughout: every
+ * icon here sits inside a control that carries its own accessible label, so
+ * announcing the glyph as well would just be noise.
+ */
+interface Props {
+  name: "github" | "copy" | "check" | "star" | "x";
+  size?: number;
+}
+
+/** `viewBox` is per-icon: not every mark is drawn on the same grid. */
+const ICONS: Record<
+  Props["name"],
+  { filled: boolean; body: string; viewBox?: string }
+> = {
+  github: {
+    filled: true,
+    body:
+      '<path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 ' +
+      '0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 ' +
+      '1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 ' +
+      '0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 ' +
+      '2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 ' +
+      '3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 ' +
+      '8c0-4.42-3.58-8-8-8Z"/>',
+  },
+  copy: {
+    filled: false,
+    body:
+      '<rect x="2.25" y="5.75" width="8" height="8" rx="1.5"/>' +
+      '<path d="M5.75 5.75V3.75a1.5 1.5 0 0 1 1.5-1.5h6.5a1.5 1.5 0 0 1 1.5 1.5v6.5a1.5 1.5 0 0 1-1.5 1.5h-2"/>',
+  },
+  check: {
+    filled: false,
+    body: '<path d="M3 8.5 6.5 12 13 4.5"/>',
+  },
+  star: {
+    filled: true,
+    body:
+      '<path d="M8 1.6l1.86 3.77 4.16.6-3.01 2.94.71 4.15L8 11.1l-3.72 1.96.71-4.15L1.98 5.97l4.16-.6L8 1.6Z"/>',
+  },
+  x: {
+    filled: true,
+    viewBox: "0 0 24 24",
+    body:
+      '<path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835' +
+      'L1.254 2.25H8.08l4.713 6.231 5.45-6.231Zm-1.161 17.52h1.833L7.084 4.126H5.117l11.966 15.644Z"/>',
+  },
+};
+
+const { name, size = 16 } = Astro.props;
+const icon = ICONS[name];
+---
+
+<svg
+  width={size}
+  height={size}
+  viewBox={icon.viewBox ?? "0 0 16 16"}
+  aria-hidden="true"
+  focusable="false"
+  fill={icon.filled ? "currentColor" : "none"}
+  stroke={icon.filled ? "none" : "currentColor"}
+  stroke-width="1.5"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+  set:html={icon.body}
+/>

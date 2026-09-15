@@ -2,6 +2,7 @@
   "name": "wise",
   "version": "0.1.0",
   "description": "Out-of-band memory for human-language explanations of code you didn't write by hand. Zero traces in your repos.",
+  "license": "MIT",
   "type": "module",
   "bin": {
     "wise": "dist/index.js"
