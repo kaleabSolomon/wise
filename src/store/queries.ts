@@ -263,3 +263,43 @@ export function clearAnchorsForRepo(db: DB, repo: string): number {
     )
     .run(repo).changes;
 }
+
+/** One explanation as a listing shows it: enough to judge relevance, no more. */
+export interface ExplanationBrief {
+  id: number;
+  symbol: string;
+  file_path: string;
+  prose: string;
+  is_stale: boolean;
+  anchored: boolean;
+  updated_at: number;
+}
+
+/**
+ * Every explanation in one repo, newest first.
+ *
+ * Scoped to a repo rather than listing the store: an agent working in one
+ * project has no use for another project's symbols, and no business seeing
+ * them. `code_snapshot` is left out — a listing never needs the code.
+ */
+export function listByRepo(db: DB, repo: string): ExplanationBrief[] {
+  const rows = db
+    .prepare(
+      `SELECT id, symbol, file_path, prose, is_stale,
+              anchor_id IS NOT NULL AS anchored, updated_at
+       FROM explanations WHERE repo = ?
+       ORDER BY updated_at DESC, id DESC`,
+    )
+    .all(repo) as Array<
+    Omit<ExplanationBrief, "is_stale" | "anchored"> & {
+      is_stale: number;
+      anchored: number;
+    }
+  >;
+
+  return rows.map((r) => ({
+    ...r,
+    is_stale: r.is_stale === 1,
+    anchored: r.anchored === 1,
+  }));
+}
