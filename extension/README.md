@@ -50,24 +50,41 @@ The `.vscode/launch.json` that F5 uses is untracked, because this repo ignores
 `.vscode/`. It exists locally; if you want it committed, add
 `!extension/.vscode/` to the root `.gitignore`.
 
-## Installing it for real
+## Install
 
-```sh
-pnpm package        # writes wise-hover-<version>.vsix
-```
+**Cursor, Windsurf, VSCodium, Gitpod** — search for *Wise* in the Extensions
+view, or install from [Open VSX](https://open-vsx.org/extension/kaleabSolomon/wise-hover).
 
-Then either drag the `.vsix` onto the Extensions view, or:
+**VS Code** — download `wise-hover-<version>.vsix` from the
+[latest release](https://github.com/kaleabSolomon/wise/releases), then either
+drag it onto the Extensions view or run:
 
 ```sh
 code --install-extension wise-hover-0.0.1.vsix
 ```
 
-Cursor, Windsurf and Antigravity accept the same file through their own
-Extensions view, or their CLI if they ship one. The `.vsix` is not committed.
+VS Code only installs from Microsoft's Marketplace or from a local file, so the
+`.vsix` is the route there for now.
 
-Publishing to the Marketplace additionally needs a registered publisher ID
-matching `publisher` in `package.json`, and a licence file — neither exists
-yet, so packaging works but publishing would be rejected.
+You also need wise itself running — the extension reads from its local server:
+
+```sh
+claude mcp add wise -- npx -y wise-mcp
+```
+
+## Developing on it
+
+```sh
+pnpm install
+pnpm build      # bundles to out/extension.cjs
+pnpm test
+pnpm package    # builds the .vsix
+```
+
+Press **F5** in this folder to open an Extension Development Host with it
+loaded. The `.vscode/launch.json` F5 uses is untracked, because this repo
+ignores `.vscode/`; add `!extension/.vscode/` to the root `.gitignore` if you
+want it committed.
 
 ## Quiet by design
 
