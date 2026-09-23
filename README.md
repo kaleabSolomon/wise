@@ -8,31 +8,30 @@ It runs as one process: an **MCP server** (over stdio, for Claude Code / the des
 
 ## Requirements
 
-- Node ≥ 20
-- [pnpm](https://pnpm.io)
-
-## Install & build
-
-```sh
-pnpm install
-pnpm build
-```
-
-This produces `dist/index.js` — the entry for both the MCP server and the viewer.
+Node ≥ 22. Nothing else — the package ships prebuilt binaries for its one
+native dependency, so there is no compile step and no build toolchain needed.
 
 ## Connect it to Claude Code
 
 ```sh
-claude mcp add wise -- node /absolute/path/to/wise/dist/index.js
+claude mcp add wise -- npx -y wise-mcp
 ```
+
+Run that from inside whichever project you want explanations for. Repeat it per
+project; the store itself is shared and lives in `~/.wise`.
 
 To keep the store off your real `~/.wise` while trying it out, point it at a
 separate **durable** path (anywhere under your home — never `/tmp`, which macOS
 wipes on reboot and after a few days idle):
 
 ```sh
-claude mcp add wise --env WISE_DB_PATH=$HOME/.wise/test.db -- node /absolute/path/to/wise/dist/index.js
+claude mcp add wise --env WISE_DB_PATH=$HOME/.wise/test.db -- npx -y wise-mcp
 ```
+
+## Other MCP clients
+
+Claude Desktop, Cursor, Windsurf, Cline and most MCP-compatible editors take
+the same config shape. Check your client's docs for where the file lives.
 
 ### Claude Desktop
 
@@ -42,8 +41,8 @@ Add to `claude_desktop_config.json`:
 {
   "mcpServers": {
     "wise": {
-      "command": "node",
-      "args": ["/absolute/path/to/wise/dist/index.js"]
+      "command": "npx",
+      "args": ["-y", "wise-mcp"]
     }
   }
 }
@@ -83,3 +82,20 @@ pnpm lint         # eslint (type-aware)
 ```
 
 A `lefthook` pre-commit hook runs format, lint, typecheck, and tests.
+
+## Building from source
+
+Only needed to work on wise itself.
+
+```sh
+pnpm install
+pnpm build          # produces dist/index.js
+pnpm test
+```
+
+Point your client at the build with `node /absolute/path/to/wise/dist/index.js`
+in place of `npx -y wise-mcp`.
+
+Note that a running MCP server keeps the code it started with. After a rebuild,
+reconnect the server in your client to pick the change up — inherent to how
+stdio MCP servers are launched, not a bug.
