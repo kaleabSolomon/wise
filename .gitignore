@@ -36,9 +36,12 @@ Thumbs.db
 *.sqlite3
 *.db
 
-# Planning / design docs — kept local, never tracked
+# Planning / design docs — kept local, never tracked.
+# Shipped docs are exempted: they are read by people who install this,
+# not just by whoever is sitting at this machine.
 *.md
 !README.md
+!extension/CHANGELOG.md
 
 # Astro generated types (site/)
 .astro/
