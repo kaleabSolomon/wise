@@ -15,6 +15,11 @@ import { saveExplanationShape, runSave } from "./tools/save.js";
 import { getExplanationShape, runGet, renderGetResult } from "./tools/get.js";
 import { installHookShape, runInstallHook } from "./tools/installHook.js";
 import {
+  listExplanationsShape,
+  runList,
+  renderListResult,
+} from "./tools/list.js";
+import {
   setAnchorsShape,
   runSetAnchors,
   anchorsState,
@@ -32,6 +37,8 @@ import { startViewer } from "./viewer/boot.js";
  */
 const SERVER_INSTRUCTIONS = [
   "Wise is a memory for plain-language explanations of code, kept outside the user's repos.",
+  "",
+  "Starting work in a repository, call list_explanations once to see what is already remembered there. It returns a gist of each, so you can tell what is worth reading in full.",
   "",
   "Before explaining a symbol the user asks about, call get_explanation — it may already be remembered, and re-deriving an explanation the user already has wastes their time.",
   "",
@@ -92,6 +99,22 @@ async function runServer(): Promise<void> {
       const { text, isError } = renderGetResult(runGet(db, args));
       return { content: [{ type: "text", text }], isError };
     },
+  );
+
+  server.registerTool(
+    "list_explanations",
+    {
+      title: "List explanations",
+      description:
+        "List every explanation saved for a repository, newest first, with a " +
+        "one-line gist of each and whether it has gone stale. Use this to find " +
+        "out what is already remembered before explaining something from " +
+        "scratch, then call get_explanation to read one in full.",
+      inputSchema: listExplanationsShape,
+    },
+    (args) => ({
+      content: [{ type: "text", text: renderListResult(runList(db, args)) }],
+    }),
   );
 
   server.registerTool(
